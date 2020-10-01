@@ -28,7 +28,7 @@ class Agent(ABC):
     def __init__(
             self,
             environment: GymEnvironment,
-            **kwargs,
+            allow_gpu: bool = True,
             ) -> None:
         """
         Abstract base class constructor.
@@ -37,11 +37,18 @@ class Agent(ABC):
         ----------
         environment : GymEnvironment
             The environment of the agent.
+        allow_gpu : bool, optional
+            Allows automatic transfer to the GPU. The default is True.
 
         """
         super().__init__()
 
         self.environment = environment
+
+        if allow_gpu and torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
 
     @abstractmethod
     def select_action(self, **kwargs):
@@ -69,6 +76,7 @@ class ObserverAgent(Agent):
             dt: float = 1.0,
             learning: bool = True,
             reward_fn: AbstractReward = None,
+            allow_gpu: bool = True,
             ) -> None:
         """
         Observer class constructor.
@@ -84,9 +92,11 @@ class ObserverAgent(Agent):
         reward_fn : AbstractReward, optional
             Optional class allowing for modification of reward in case of
             reward-modulated learning. The default is None.
+        allow_gpu : bool, optional
+            Allows automatic transfer to the GPU. The default is True.
 
         """
-        super().__init__(environment)
+        super().__init__(environment, allow_gpu)
 
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
@@ -141,8 +151,7 @@ class ObserverAgent(Agent):
         self.network.add_connection(pm_sts, "PM", "STS")
         self.network.add_connection(pm_pm, "PM", "PM")
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.network.to(device)
+        self.network.to(self.device)
 
     def select_action(self, **kwargs):
         # TODO fillt the method body
@@ -156,6 +165,7 @@ class ExpertAgent(Agent):
 
     def __init__(self,
                  environment: GymEnvironment,
+                 allow_gpu: bool = True,
                  ) -> None:
         """
         Expert class constructor.
@@ -164,9 +174,11 @@ class ExpertAgent(Agent):
         ----------
         environment : GymEnvironment
             Environment of the expert agent.
+        allow_gpu : bool, optional
+            Allows automatic transfer to the GPU. The default is True.
 
         """
-        super().__init__(environment)
+        super().__init__(environment, allow_gpu)
 
     def select_action(self, **kwargs):
         # TODO fill the method body
