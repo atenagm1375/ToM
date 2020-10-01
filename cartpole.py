@@ -13,10 +13,6 @@ from bindsnet.learning.reward import MovingAvgRPE
 from agents import ObserverAgent
 
 
-def cartpole_observation_encoder(datum, time, dt=1.0, device="cpu"):
-    pass
-
-
 environment = GymEnvironment('CartPole-v1')
 environment.reset()
 

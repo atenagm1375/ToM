@@ -46,8 +46,10 @@ class Agent(ABC):
         self.environment = environment
 
         if allow_gpu and torch.cuda.is_available():
+            self.allow_gpu = True
             self.device = torch.device("cuda")
         else:
+            self.allow_gpu = False
             self.device = torch.device("cpu")
 
     @abstractmethod
@@ -100,6 +102,7 @@ class ObserverAgent(Agent):
 
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
+        # TODO Consider network structure
         s2 = Input(n=4, shape=[1, 1, 1, 4], traces=True)
         sts = DiehlAndCookNodes(n=100, traces=True,
                                 thresh=-52.0,
@@ -154,7 +157,7 @@ class ObserverAgent(Agent):
         self.network.to(self.device)
 
     def select_action(self, **kwargs):
-        # TODO fillt the method body
+        # TODO fill the method body
         pass
 
 
