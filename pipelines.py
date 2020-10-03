@@ -70,7 +70,7 @@ class ObserverExpertPipeline(EnvironmentPipeline):
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
 
-    def encoding(
+    def observation_encoder(
             self,
             datum: torch.Tensor,
             time: int,
@@ -103,8 +103,62 @@ class ObserverExpertPipeline(EnvironmentPipeline):
         None
 
         """
-        # TODO fill the body
-        pass
+        while self.episode < self.num_episodes:
+            self.reset_state_variables()
+
+            done = False
+            while not done:
+                obs, reward, done, info = self.env_step()
+
+                self.step((obs, reward, done, info), **kwargs)
+
+            print(
+                f"Episode: {self.episode} - "
+                f"accumulated reward: {self.accumulated_reward:.2f}"
+            )
+            self.episode += 1
+
+    def step_(
+            self,
+            gym_batch: tuple[torch.Tensor, float, bool, dict],
+            **kwargs
+            ) -> None:
+        """
+        Run one step of the oberserver's network.
+
+        Parameters
+        ----------
+        gym_batch : tuple[torch.Tensor, float, bool, dict]
+            An OpenAI gym compatible tuple.
+
+        Returns
+        -------
+        None
+
+        """
+        self.encoding = self.observation_encoder
+
+        obs, reward, done, info = gym_batch
+
+        obs.unsqueeze(0)
+        inputs = {
+            k: self.encoding(obs, self.time)
+            for k in self.inputs
+            }
+
+        # TODO edit reward
+
+        self.network.run(inputs=inputs, time=self.time, reward=reward,
+                         **kwargs)
+
+        if done:
+            if self.network.reward_fn is not None:
+                self.network.reward_fn.update(
+                    accumulated_reward=self.accumulated_reward,
+                    steps=self.step_count,
+                    **kwargs,
+                )
+            self.reward_list.append(self.accumulated_reward)
 
     def self_train(self, **kwargs) -> None:
         """
@@ -113,7 +167,6 @@ class ObserverExpertPipeline(EnvironmentPipeline):
         Returns
         -------
         None
-            DESCRIPTION.
 
         """
         # TODO fill the body
