@@ -15,7 +15,7 @@ from bindsnet.environment import GymEnvironment
 from bindsnet.network import Network
 from bindsnet.learning.reward import AbstractReward
 from bindsnet.network.nodes import Input, DiehlAndCookNodes
-from bindsnet.network.topology import Connection, SparseConnection
+from bindsnet.network.topology import Connection
 from bindsnet.learning import WeightDependentPostPre, MSTDPET
 
 
@@ -103,7 +103,7 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[4, 10], traces=True)
+        s2 = Input(shape=[1, 4, 10], traces=True)
         pfc = Input(n=1000, traces=True)
         sts = DiehlAndCookNodes(n=500, traces=True,
                                 thresh=-52.0,
