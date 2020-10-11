@@ -103,8 +103,9 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(n=4, shape=[1, 1, 1, 4], traces=True)
-        sts = DiehlAndCookNodes(n=100, traces=True,
+        s2 = Input(shape=[4, 10], traces=True)
+        pfc = Input(n=1000, traces=True)
+        sts = DiehlAndCookNodes(n=500, traces=True,
                                 thresh=-52.0,
                                 rest=-65.0,
                                 reset=-65.0,
@@ -112,7 +113,7 @@ class ObserverAgent(Agent):
                                 tc_decay=100.0,
                                 theta_plus=0.05,
                                 tc_theta_decay=1e7)
-        pm = DiehlAndCookNodes(n=2, traces=True,
+        pm = DiehlAndCookNodes(shape=[2, 20], traces=True,
                                thresh=-52.0,
                                rest=-65.0,
                                reset=-65.0,
@@ -132,32 +133,31 @@ class ObserverAgent(Agent):
                             wmin=0.0,
                             wmax=1.0,
                             norm=0.5 * sts.n)
-        sts_sts = SparseConnection(sts, sts, sparsity=0.25)
-        pm_sts = Connection(pm, sts,
+        pfc_pm = Connection(pfc, pm,
                             nu=[0.05, 0.04],
-                            update_rule=WeightDependentPostPre,
-                            wmin=-1.0,
-                            wmax=0.01,
-                            norm=0.25 * pm.n)
+                            update_rule=MSTDPET,
+                            wmin=0.0,
+                            wmax=1.0,
+                            norm=0.25 * pfc.n)
         pm_pm = Connection(pm, pm,
                            nu=[0.05, 0.04],
                            wmin=-0.1,
-                           wmax=0.1)
+                           wmax=0.)
 
         self.network.add_layer(s2, "S2")
         self.network.add_layer(sts, "STS")
+        self.network.add_layer(pfc, "PFC")
         self.network.add_layer(pm, "PM")
 
         self.network.add_connection(s2_sts, "S2", "STS")
         self.network.add_connection(sts_pm, "STS", "PM")
-        self.network.add_connection(sts_sts, "STS", "STS")
-        self.network.add_connection(pm_sts, "PM", "STS")
+        self.network.add_connection(pfc_pm, "PFC", "PM")
         self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.to(self.device)
 
     def select_action(self, **kwargs):
-        # TODO fill the method body
+        # TODO fill the method body (return winner of output population)
         pass
 
 

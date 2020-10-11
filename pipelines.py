@@ -24,6 +24,7 @@ class ObserverExpertPipeline(EnvironmentPipeline):
             self,
             observer_agent: ObserverAgent,
             expert_agent: ExpertAgent,
+            encoding: callable = None,
             **kwargs,
             ) -> None:
         """
@@ -35,6 +36,8 @@ class ObserverExpertPipeline(EnvironmentPipeline):
             The oberserver agent in the environment.
         expert_agent : ExpertAgent
             The expert agent in the environment.
+        encoding : callable, optional
+            The observation encoder function. The default is None.
 
         Keyword Arguments
         -----------------
@@ -64,59 +67,12 @@ class ObserverExpertPipeline(EnvironmentPipeline):
         super().__init__(
             observer_agent.network,
             observer_agent.environment,
+            encoding=encoding,
             allow_gpu=observer_agent.allow_gpu,
             **kwargs,
             )
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
-
-    def observation_encoder(
-            self,
-            datum: torch.Tensor,
-            time: int,
-            **kwargs,
-            ) -> torch.Tensor:
-        """
-        Encode observation vector.
-
-        Parameters
-        ----------
-        datum : torch.Tensor
-            Observation tensor.
-        time : int
-            Length of spike train per observation.
-
-        Returns
-        -------
-        None.
-
-        """
-        # TODO fill the body
-        pass
-
-    def train_by_observation(self, **kwargs) -> None:
-        """
-        Train observer agent's network by observing the expert.
-
-        Returns
-        -------
-        None
-
-        """
-        while self.episode < self.num_episodes:
-            self.reset_state_variables()
-
-            done = False
-            while not done:
-                obs, reward, done, info = self.env_step()
-
-                self.step((obs, reward, done, info), **kwargs)
-
-            print(
-                f"Episode: {self.episode} - "
-                f"accumulated reward: {self.accumulated_reward:.2f}"
-            )
-            self.episode += 1
 
     def step_(
             self,
@@ -136,19 +92,17 @@ class ObserverExpertPipeline(EnvironmentPipeline):
         None
 
         """
-        self.encoding = self.observation_encoder
-
         obs, reward, done, info = gym_batch
 
-        obs.unsqueeze(0)
+        obs.unsqueeze(0)  # Add a dimension for time.
         inputs = {
             k: self.encoding(obs, self.time)
             for k in self.inputs
             }
 
-        # TODO edit reward
+        # TODO define keyword arguments for reward function
 
-        self.network.run(inputs=inputs, time=self.time, reward=reward,
+        self.network.run(inputs=inputs, time=self.time,
                          **kwargs)
 
         if done:
@@ -158,7 +112,41 @@ class ObserverExpertPipeline(EnvironmentPipeline):
                     steps=self.step_count,
                     **kwargs,
                 )
+
+            # Update reward list for plotting purposes.
             self.reward_list.append(self.accumulated_reward)
+
+    def train_by_observation(self, **kwargs) -> None:
+        """
+        Train observer agent's network by observing the expert.
+
+        Returns
+        -------
+        None
+
+        """
+        self.observer_agent.network.train(True)
+
+        # Expert acts in the environment.
+        self.action_function = self.expert_agent.select_action
+
+        while self.episode < self.num_episodes:
+            self.reset_state_variables()
+
+            done = False
+            while not done:
+                # The result of expert's action.
+                obs, reward, done, info = self.env_step()
+
+                # The observer watches the result of expert's action and how
+                # it modified the environment.
+                self.step((obs, reward, done, info), **kwargs)
+
+            print(
+                f"Episode: {self.episode} - "
+                f"accumulated reward: {self.accumulated_reward:.2f}"
+            )
+            self.episode += 1
 
     def self_train(self, **kwargs) -> None:
         """
@@ -182,4 +170,15 @@ class ObserverExpertPipeline(EnvironmentPipeline):
 
         """
         # TODO fill the body
-        pass
+        self.observer_agent.network.train(False)
+
+        self.action_function = self.observer_agent.select_action
+
+        self.reset_state_variables()
+
+        done = False
+        while not done:
+            # The result of observer's action.
+            obs, reward, done, info = self.env_step()
+
+            self.step((obs, reward, done, info), **kwargs)
