@@ -53,7 +53,7 @@ class Agent(ABC):
             self.device = torch.device("cpu")
 
     @abstractmethod
-    def select_action(self, **kwargs):
+    def select_action(self, action_space, **kwargs):
         """
         Abstract method to select an action.
 
@@ -100,10 +100,13 @@ class ObserverAgent(Agent):
         """
         super().__init__(environment, allow_gpu)
 
+        input_shape = self.environment.env.observation_space.shape
+        output_shape = self.environment.env.action_space.shape
+
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[1, 4, 10], traces=True)
+        s2 = Input(shape=[1, *input_shape, 10], traces=True)
         pfc = Input(n=1000, traces=True)
         sts = DiehlAndCookNodes(n=500, traces=True,
                                 thresh=-52.0,
@@ -113,7 +116,7 @@ class ObserverAgent(Agent):
                                 tc_decay=100.0,
                                 theta_plus=0.05,
                                 tc_theta_decay=1e7)
-        pm = DiehlAndCookNodes(shape=[2, 20], traces=True,
+        pm = DiehlAndCookNodes(shape=[*output_shape, 20], traces=True,
                                thresh=-52.0,
                                rest=-65.0,
                                reset=-65.0,
@@ -156,7 +159,7 @@ class ObserverAgent(Agent):
 
         self.network.to(self.device)
 
-    def select_action(self, **kwargs):
+    def select_action(self, action_space, **kwargs):
         # TODO fill the method body (return winner of output population)
         pass
 
@@ -183,6 +186,6 @@ class ExpertAgent(Agent):
         """
         super().__init__(environment, allow_gpu)
 
-    def select_action(self, **kwargs):
+    def select_action(self, action_space, **kwargs):
         # TODO fill the method body
         pass

@@ -9,6 +9,7 @@ pipelines.py
 """
 
 import torch
+from tqdm import tqdm
 
 from bindsnet.pipeline.environment_pipeline import EnvironmentPipeline
 
@@ -73,6 +74,69 @@ class ObserverExpertPipeline(EnvironmentPipeline):
             )
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
+
+    def env_step(self) -> tuple[torch.Tensor, float, bool, dict]:
+        """
+        Single step of the environment which includes rendering, getting and
+        performing the action, and accumulating/delaying rewards.
+
+        Returns
+        -------
+        obs : torch.Tensor
+            The observation tensor.
+        reward : float
+            The reward value.
+        done : bool
+            Indicates if the the episode is terminated.
+        info : dict
+            The information dictionary for verbose.
+
+        """
+        # Render game.
+        if (
+            self.render_interval is not None
+            and self.step_count % self.render_interval == 0
+        ):
+            self.env.render()
+
+        # Choose action based on output neuron spiking.
+        if self.action_function is not None:
+            self.last_action = self.action
+            if torch.rand(1) < self.percent_of_random_action:
+                self.action = torch.randint(
+                    low=0, high=self.env.action_space.n, size=(1,)
+                )[0]
+            elif self.action_counter > self.random_action_after:
+                if self.last_action == 0:  # last action was start b
+                    self.action = 1  # next action will be fire b
+                    tqdm.write(f"Fire -> too many times {self.last_action} ")
+                else:
+                    self.action = torch.randint(
+                        low=0, high=self.env.action_space.n, size=(1,)
+                    )[0]
+                    tqdm.write(f"too many times {self.last_action} ")
+            else:
+                self.action = self.action_function(self.env.action_space)
+
+            if self.last_action == self.action:
+                self.action_counter += 1
+            else:
+                self.action_counter = 0
+
+        # Run a step of the environment.
+        obs, reward, done, info = self.env.step(self.action)
+
+        # Set reward in case of delay.
+        if self.reward_delay is not None:
+            self.rewards = torch.tensor([reward, *self.rewards[1:]]).float()
+            reward = self.rewards[-1]
+
+        # Accumulate reward.
+        self.accumulated_reward += reward
+
+        info["accumulated_reward"] = self.accumulated_reward
+
+        return obs, reward, done, info
 
     def step_(
             self,
