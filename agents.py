@@ -78,7 +78,7 @@ class Agent(ABC):
 
 class ObserverAgent(Agent):
     """
-    Observer agent in CartPole Gym environment.
+    Observer agent in Gym environment.
 
     Parameters
     ----------
@@ -192,6 +192,27 @@ class ObserverAgent(Agent):
 
 class ExpertAgent(Agent):
     """
+    Expert agent in Gym environment.
+
+    Parameters
+    ----------
+    environment : GymEnvironment
+        Environment of the expert agent.
+    allow_gpu : bool, optional
+        Allows automatic transfer to the GPU. The default is True.
+
+    """
+
+    def __init__(self,
+                 environment: GymEnvironment,
+                 allow_gpu: bool = True,
+                 ) -> None:
+
+        super().__init__(environment, allow_gpu)
+
+
+class CartPoleExpertAgent(ExpertAgent):
+    """
     Expert agent in CartPole Gym environment.
 
     Parameters
@@ -232,5 +253,10 @@ class ExpertAgent(Agent):
             The action to be taken.
 
         """
-        # TODO fill the method body
-        pass
+        # TODO ENHANCEMENT
+        obs, reward, done, info = kwargs["env_state"]
+        if obs[0] > 1:
+            return 0
+        if obs[0] < -1:
+            return 1
+        return -0.209 < obs[2] < 0.209

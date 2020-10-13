@@ -12,7 +12,7 @@ import torch
 from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import MovingAvgRPE
 
-from agents import ObserverAgent
+from agents import ObserverAgent, CartPoleExpertAgent
 
 
 def cartpole_observation_encoder(
@@ -43,3 +43,4 @@ environment = GymEnvironment('CartPole-v1')
 environment.reset()
 
 observer = ObserverAgent(environment, dt=1.0, reward_fn=MovingAvgRPE)
+expert = CartPoleExpertAgent(environment)
