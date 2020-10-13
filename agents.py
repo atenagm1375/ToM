@@ -244,8 +244,6 @@ class CartPoleExpertAgent(ExpertAgent):
 
         Keyword Arguments
         -----------------
-        env_state : tuple
-            The environment state.
 
         Returns
         -------
@@ -254,7 +252,8 @@ class CartPoleExpertAgent(ExpertAgent):
 
         """
         # TODO ENHANCEMENT
-        cart_pos, cart_v, pole_angle, pole_angular_v = kwargs["env_state"]
+        cart_pos, cart_v, pole_angle, pole_angular_v = \
+            self.environment.env.state
         if cart_pos > 1:
             return 0
         if cart_pos < -1:
