@@ -244,7 +244,7 @@ class CartPoleExpertAgent(ExpertAgent):
 
         Keyword Arguments
         -----------------
-        env_state : tuple[torch.Tensor, float, bool, dict]
+        env_state : tuple
             The environment state.
 
         Returns
@@ -254,9 +254,9 @@ class CartPoleExpertAgent(ExpertAgent):
 
         """
         # TODO ENHANCEMENT
-        obs, reward, done, info = kwargs["env_state"]
-        if obs[0] > 1:
+        cart_pos, cart_v, pole_angle, pole_angular_v = kwargs["env_state"]
+        if cart_pos > 1:
             return 0
-        if obs[0] < -1:
+        if cart_pos < -1:
             return 1
-        return -0.209 < obs[2] < 0.209
+        return -0.209 < pole_angle < 0.209
