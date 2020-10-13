@@ -89,7 +89,7 @@ class AgentPipeline(EnvironmentPipeline):
 
         KeywordArguments
         ----------------
-        env_state : tuple[torch.Tensor, float, bool, dict]
+        env_state : tuple
             The environment state. Targeted for expert action taking.
 
         """
@@ -202,7 +202,8 @@ class AgentPipeline(EnvironmentPipeline):
             done = False
             while not done:
                 # The result of expert's action.
-                obs, reward, done, info = self.env_step()
+                obs, reward, done, info = self.env_step(
+                    env_state=self.env.env.state)
 
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
