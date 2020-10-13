@@ -16,9 +16,34 @@ from bindsnet.pipeline.environment_pipeline import EnvironmentPipeline
 from agents import ObserverAgent, ExpertAgent
 
 
-class ObserverExpertPipeline(EnvironmentPipeline):
+class AgentPipeline(EnvironmentPipeline):
     """
     Abstracts the interaction between agents in the environment.
+
+    Parameters
+    ----------
+    observer_agent : ObserverAgent
+        The oberserver agent in the environment.
+    expert_agent : ExpertAgent
+        The expert agent in the environment.
+    encoding : callable, optional
+        The observation encoder function. The default is None.
+
+    Keyword Arguments
+    -----------------
+    num_episodes : int
+        Number of episodes to train for. The default is 100.
+    output : str
+        String name of the layer from which to take output.
+    render_interval : int
+        Interval to render the environment.
+    reward_delay : int
+        How many iterations to delay delivery of reward.
+    time : int
+        Time for which to run the network.
+    overlay_input : int
+        Overlay the last X previous input.
+
     """
 
     def __init__(
@@ -28,38 +53,7 @@ class ObserverExpertPipeline(EnvironmentPipeline):
             encoding: callable = None,
             **kwargs,
             ) -> None:
-        """
-        Pipeline class costructor.
 
-        Parameters
-        ----------
-        observer_agent : ObserverAgent
-            The oberserver agent in the environment.
-        expert_agent : ExpertAgent
-            The expert agent in the environment.
-        encoding : callable, optional
-            The observation encoder function. The default is None.
-
-        Keyword Arguments
-        -----------------
-        num_episodes : int
-            Number of episodes to train for. The default is 100.
-        output : str
-            String name of the layer from which to take output.
-        render_interval : int
-            Interval to render the environment.
-        reward_delay : int
-            How many iterations to delay delivery of reward.
-        time : int
-            Time for which to run the network.
-        overlay_input : int
-            Overlay the last X previous input.
-
-        Returns
-        -------
-        None
-
-        """
         assert (observer_agent.environment == expert_agent.environment), \
             "Observer and Expert must be located in the same environment."
         assert (observer_agent.device == expert_agent.device), \
@@ -77,8 +71,10 @@ class ObserverExpertPipeline(EnvironmentPipeline):
 
     def env_step(self) -> tuple[torch.Tensor, float, bool, dict]:
         """
-        Single step of the environment which includes rendering, getting and
-        performing the action, and accumulating/delaying rewards.
+        Perform single step of the environment.
+
+        Includes rendering, getting and performing the action, and
+        accumulating/delaying rewards.
 
         Returns
         -------
@@ -233,7 +229,6 @@ class ObserverExpertPipeline(EnvironmentPipeline):
         None
 
         """
-        # TODO fill the body
         self.observer_agent.network.train(False)
 
         self.action_function = self.observer_agent.select_action

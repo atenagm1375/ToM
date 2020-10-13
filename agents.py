@@ -8,6 +8,7 @@ agents.py
 ==============================================================================.
 """
 import torch
+import gym
 
 from abc import ABC, abstractmethod
 
@@ -22,6 +23,14 @@ from bindsnet.learning import WeightDependentPostPre, MSTDPET
 class Agent(ABC):
     """
     Abstract base class for agents.
+
+    Parameters
+    ----------
+    environment : GymEnvironment
+        The environment of the agent.
+    allow_gpu : bool, optional
+        Allows automatic transfer to the GPU. The default is True.
+
     """
 
     @abstractmethod
@@ -30,17 +39,7 @@ class Agent(ABC):
             environment: GymEnvironment,
             allow_gpu: bool = True,
             ) -> None:
-        """
-        Abstract base class constructor.
 
-        Parameters
-        ----------
-        environment : GymEnvironment
-            The environment of the agent.
-        allow_gpu : bool, optional
-            Allows automatic transfer to the GPU. The default is True.
-
-        """
         super().__init__()
 
         self.environment = environment
@@ -53,9 +52,19 @@ class Agent(ABC):
             self.device = torch.device("cpu")
 
     @abstractmethod
-    def select_action(self, action_space, **kwargs):
+    def select_action(self,
+                      action_space: gym.spaces.Space,
+                      **kwargs) -> int:
         """
         Abstract method to select an action.
+
+        Parameters
+        ----------
+        action_space : gym.spaces.Space
+            The action space to choose from.
+
+        Keyword Arguments
+        -----------------
 
         Returns
         -------
@@ -70,6 +79,21 @@ class Agent(ABC):
 class ObserverAgent(Agent):
     """
     Observer agent in CartPole Gym environment.
+
+    Parameters
+    ----------
+    environment : GymEnvironment
+        The environment of the observer agent.
+    dt : float, optional
+        Network simulation timestep. The default is 1.0.
+    learning : bool, optional
+        Whether to allow network connection updates. The default is True.
+    reward_fn : AbstractReward, optional
+        Optional class allowing for modification of reward in case of
+        reward-modulated learning. The default is None.
+    allow_gpu : bool, optional
+        Allows automatic transfer to the GPU. The default is True.
+
     """
 
     def __init__(
@@ -80,24 +104,7 @@ class ObserverAgent(Agent):
             reward_fn: AbstractReward = None,
             allow_gpu: bool = True,
             ) -> None:
-        """
-        Observer class constructor.
 
-        Parameters
-        ----------
-        environment : GymEnvironment
-            The environment of the observer agent.
-        dt : float, optional
-            Network simulation timestep. The default is 1.0.
-        learning : bool, optional
-            Whether to allow network connection updates. The default is True.
-        reward_fn : AbstractReward, optional
-            Optional class allowing for modification of reward in case of
-            reward-modulated learning. The default is None.
-        allow_gpu : bool, optional
-            Allows automatic transfer to the GPU. The default is True.
-
-        """
         super().__init__(environment, allow_gpu)
 
         input_shape = self.environment.env.observation_space.shape
@@ -159,7 +166,26 @@ class ObserverAgent(Agent):
 
         self.network.to(self.device)
 
-    def select_action(self, action_space, **kwargs):
+    def select_action(self,
+                      action_space: gym.spaces.Space,
+                      **kwargs) -> int:
+        """
+        Choose the proper action based on observation.
+
+        Parameters
+        ----------
+        action_space : gym.spaces.Space
+            The action space to choose from.
+
+        Keyword Arguments
+        -----------------
+
+        Returns
+        -------
+        action : int
+            The action to be taken.
+
+        """
         # TODO fill the method body (return winner of output population)
         pass
 
@@ -167,25 +193,42 @@ class ObserverAgent(Agent):
 class ExpertAgent(Agent):
     """
     Expert agent in CartPole Gym environment.
+
+    Parameters
+    ----------
+    environment : GymEnvironment
+        Environment of the expert agent.
+    allow_gpu : bool, optional
+        Allows automatic transfer to the GPU. The default is True.
+
     """
 
     def __init__(self,
                  environment: GymEnvironment,
                  allow_gpu: bool = True,
                  ) -> None:
+
+        super().__init__(environment, allow_gpu)
+
+    def select_action(self,
+                      action_space: gym.spaces.Space,
+                      **kwargs) -> int:
         """
-        Expert class constructor.
+        Choose the proper action based on observation.
 
         Parameters
         ----------
-        environment : GymEnvironment
-            Environment of the expert agent.
-        allow_gpu : bool, optional
-            Allows automatic transfer to the GPU. The default is True.
+        action_space : gym.spaces.Space
+            The action space to choose from.
+
+        Keyword Arguments
+        -----------------
+
+        Returns
+        -------
+        action : int
+            The action to be taken.
 
         """
-        super().__init__(environment, allow_gpu)
-
-    def select_action(self, action_space, **kwargs):
         # TODO fill the method body
         pass
