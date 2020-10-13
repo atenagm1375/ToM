@@ -69,7 +69,7 @@ class AgentPipeline(EnvironmentPipeline):
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
 
-    def env_step(self) -> tuple[torch.Tensor, float, bool, dict]:
+    def env_step(self, **kwargs) -> tuple[torch.Tensor, float, bool, dict]:
         """
         Perform single step of the environment.
 
@@ -86,6 +86,11 @@ class AgentPipeline(EnvironmentPipeline):
             Indicates if the the episode is terminated.
         info : dict
             The information dictionary for verbose.
+
+        KeywordArguments
+        ----------------
+        env_state : tuple[torch.Tensor, float, bool, dict]
+            The environment state. Targeted for expert action taking.
 
         """
         # Render game.
@@ -112,7 +117,8 @@ class AgentPipeline(EnvironmentPipeline):
                     )[0]
                     tqdm.write(f"too many times {self.last_action} ")
             else:
-                self.action = self.action_function(self.env.action_space)
+                self.action = self.action_function(self.env.action_space,
+                                                   **kwargs)
 
             if self.last_action == self.action:
                 self.action_counter += 1

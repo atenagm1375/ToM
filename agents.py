@@ -223,6 +223,8 @@ class ExpertAgent(Agent):
 
         Keyword Arguments
         -----------------
+        env_state : tuple[torch.Tensor, float, bool, dict]
+            The environment state.
 
         Returns
         -------
