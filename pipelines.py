@@ -69,7 +69,7 @@ class AgentPipeline(EnvironmentPipeline):
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
 
-    def env_step(self, **kwargs) -> tuple[torch.Tensor, float, bool, dict]:
+    def env_step(self) -> tuple[torch.Tensor, float, bool, dict]:
         """
         Perform single step of the environment.
 
@@ -117,8 +117,7 @@ class AgentPipeline(EnvironmentPipeline):
                     )[0]
                     tqdm.write(f"too many times {self.last_action} ")
             else:
-                self.action = self.action_function(self.env.action_space,
-                                                   **kwargs)
+                self.action = self.action_function(self.env.action_space)
 
             if self.last_action == self.action:
                 self.action_counter += 1
@@ -202,8 +201,7 @@ class AgentPipeline(EnvironmentPipeline):
             done = False
             while not done:
                 # The result of expert's action.
-                obs, reward, done, info = self.env_step(
-                    env_state=self.env.env.state)
+                obs, reward, done, info = self.env_step()
 
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
