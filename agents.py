@@ -8,7 +8,6 @@ agents.py
 ==============================================================================.
 """
 import torch
-import gym
 
 from abc import ABC, abstractmethod
 
@@ -53,15 +52,9 @@ class Agent(ABC):
 
     @abstractmethod
     def select_action(self,
-                      action_space: gym.spaces.Space,
                       **kwargs) -> int:
         """
         Abstract method to select an action.
-
-        Parameters
-        ----------
-        action_space : gym.spaces.Space
-            The action space to choose from.
 
         Keyword Arguments
         -----------------
@@ -167,15 +160,9 @@ class ObserverAgent(Agent):
         self.network.to(self.device)
 
     def select_action(self,
-                      action_space: gym.spaces.Space,
                       **kwargs) -> int:
         """
         Choose the proper action based on observation.
-
-        Parameters
-        ----------
-        action_space : gym.spaces.Space
-            The action space to choose from.
 
         Keyword Arguments
         -----------------
@@ -198,6 +185,13 @@ class ExpertAgent(Agent):
     ----------
     environment : GymEnvironment
         Environment of the expert agent.
+    method : str, optional
+        Defines the method that agent acts. Possible values:
+            `random`: Expert acts randomly.
+            `manual`: Expert action is controlled by some human user.
+            `from_weight`: Expert acts based on some weight matrix from a
+                           trained network.
+            `user-defined`: Expert is controlled by a user-defined function.
     allow_gpu : bool, optional
         Allows automatic transfer to the GPU. The default is True.
 
@@ -205,47 +199,28 @@ class ExpertAgent(Agent):
 
     def __init__(self,
                  environment: GymEnvironment,
+                 method: str = 'random',
                  allow_gpu: bool = True,
                  ) -> None:
 
         super().__init__(environment, allow_gpu)
-
-
-class CartPoleExpertAgent(ExpertAgent):
-    """
-    Expert agent in CartPole Gym environment.
-
-    Parameters
-    ----------
-    environment : GymEnvironment
-        Environment of the expert agent.
-    allow_gpu : bool, optional
-        Allows automatic transfer to the GPU. The default is True.
-
-    """
-
-    def __init__(self,
-                 environment: GymEnvironment,
-                 allow_gpu: bool = True,
-                 ) -> None:
-
-        super().__init__(environment, allow_gpu)
+        self.method = method
 
     def select_action(self,
-                      action_space: gym.spaces.Space,
                       **kwargs) -> int:
         """
         Choose the proper action based on observation.
 
-        Parameters
-        ----------
-        action_space : gym.spaces.Space
-            The action space to choose from.
-
         Keyword Arguments
         -----------------
-        env_state : tuple
-            The environment state.
+        weight : str or torch.Tensor
+            The weight matrix from a trained network. It contains one of the:
+                1) String of the path to weight file.
+                2) The weight tensor itself.
+            Used when method is set to `from_weight`.
+        function : callable
+            The control function define by user.
+            Used when method is set to `user-defined`.
 
         Returns
         -------
@@ -253,10 +228,27 @@ class CartPoleExpertAgent(ExpertAgent):
             The action to be taken.
 
         """
-        # TODO ENHANCEMENT
-        cart_pos, cart_v, pole_angle, pole_angular_v = kwargs["env_state"]
-        if cart_pos > 1:
-            return 0
-        if cart_pos < -1:
-            return 1
-        return -0.209 < pole_angle < 0.209
+        # Expert acts randomly
+        if self.method == 'random' or self.method is None:
+            return self.environment.action_space.sample()
+
+        # Expert is controlled manually by a human
+        if self.method == 'manual':
+            # TODO implement arrow key control
+            return
+
+        state = torch.from_numpy(self.environment.env.state)
+
+        # Expert acts based on the weight matrix of a trained network.
+        if self.method == 'from_weight':
+            weight = kwargs['weight']
+            if isinstance(weight, str):
+                weight = torch.load(weight)
+
+            return torch.argmax(torch.matmul(state, weight))
+
+        # Expert is controlled by some user-defined control function.
+        if self.method == 'user-defined':
+            return kwargs['function'](state, **kwargs)
+
+        raise ValueError
