@@ -89,8 +89,6 @@ class AgentPipeline(EnvironmentPipeline):
 
         KeywordArguments
         ----------------
-        env_state : tuple
-            The environment state. Targeted for expert action taking.
 
         """
         # Render game.
@@ -117,7 +115,7 @@ class AgentPipeline(EnvironmentPipeline):
                     )[0]
                     tqdm.write(f"too many times {self.last_action} ")
             else:
-                self.action = self.action_function(self.env.action_space)
+                self.action = self.action_function()
 
             if self.last_action == self.action:
                 self.action_counter += 1
