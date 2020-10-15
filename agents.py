@@ -17,6 +17,7 @@ from bindsnet.learning.reward import AbstractReward
 from bindsnet.network.nodes import Input, DiehlAndCookNodes
 from bindsnet.network.topology import Connection
 from bindsnet.learning import WeightDependentPostPre, MSTDPET
+from bindsnet.network.monitors import Monitor
 
 
 class Agent(ABC):
@@ -77,6 +78,12 @@ class ObserverAgent(Agent):
     ----------
     environment : GymEnvironment
         The environment of the observer agent.
+    method : str, optional
+        The method that the agent acts upon. Possible values are:
+            `first_spike`: Select the action with the first spike.
+            `softmax`: Select an action using softmax function on the spikes.
+            `random`: Select actions randomly.
+        The default is 'fist_spike'.
     dt : float, optional
         Network simulation timestep. The default is 1.0.
     learning : bool, optional
@@ -92,6 +99,7 @@ class ObserverAgent(Agent):
     def __init__(
             self,
             environment: GymEnvironment,
+            method: str = 'first_spike',
             dt: float = 1.0,
             learning: bool = True,
             reward_fn: AbstractReward = None,
@@ -99,6 +107,8 @@ class ObserverAgent(Agent):
             ) -> None:
 
         super().__init__(environment, allow_gpu)
+
+        self.method = method
 
         input_shape = self.environment.env.observation_space.shape
         output_shape = self.environment.env.action_space.shape
@@ -157,6 +167,11 @@ class ObserverAgent(Agent):
         self.network.add_connection(pfc_pm, "PFC", "PM")
         self.network.add_connection(pm_pm, "PM", "PM")
 
+        self.network.add_monitor(
+            Monitor(self.network.layers["PM"], ["s"]),
+            "PM",
+        )
+
         self.network.to(self.device)
 
     def select_action(self,
@@ -173,8 +188,26 @@ class ObserverAgent(Agent):
             The action to be taken.
 
         """
-        # TODO fill the method body (return winner of output population)
-        pass
+        spikes = (self.network.monitors["PM"].get("s").float())
+
+        # Select action based on first spike.
+        if self.method == 'first_spike':
+            spikes = spikes.squeeze().squeeze().nonzero()
+
+            if spikes.shape[0] == 0:
+                return self.environment.action_space.sample()
+            else:
+                return spikes[0, 1]
+
+        # Select action using softmax.
+        if self.method == 'softmax':
+            spikes = torch.sum(spikes, dim=0)
+            probs = torch.softmax(spikes, dim=0)
+            return torch.multinomial(probs, num_samples=1).item()
+
+        # Select action randomly.
+        if self.method == 'random' or self.method is None:
+            return self.environment.action_space.sample()
 
 
 class ExpertAgent(Agent):
@@ -186,12 +219,13 @@ class ExpertAgent(Agent):
     environment : GymEnvironment
         Environment of the expert agent.
     method : str, optional
-        Defines the method that agent acts. Possible values:
+        Defines the method that agent acts upon. Possible values:
             `random`: Expert acts randomly.
             `manual`: Expert action is controlled by some human user.
             `from_weight`: Expert acts based on some weight matrix from a
                            trained network.
             `user-defined`: Expert is controlled by a user-defined function.
+        The default is 'random'.
     allow_gpu : bool, optional
         Allows automatic transfer to the GPU. The default is True.
 
