@@ -8,6 +8,7 @@ agents.py
 ==============================================================================.
 """
 import torch
+import numpy as np
 
 from abc import ABC, abstractmethod
 
@@ -116,7 +117,7 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[1, *input_shape, 10], traces=True)
+        s2 = Input(shape=[*input_shape, 10], traces=True)
         pfc = Input(n=1000, traces=True)
         sts = DiehlAndCookNodes(n=500, traces=True,
                                 thresh=-52.0,
@@ -271,7 +272,7 @@ class ExpertAgent(Agent):
             # TODO implement arrow key control
             return
 
-        state = torch.from_numpy(self.environment.env.state)
+        state = torch.from_numpy(np.array(self.environment.env.state)).float()
 
         # Expert acts based on the weight matrix of a trained network.
         if self.method == 'from_weight':
@@ -279,7 +280,7 @@ class ExpertAgent(Agent):
             if isinstance(weight, str):
                 weight = torch.load(weight)
 
-            return torch.argmax(torch.matmul(state, weight))
+            return torch.argmax(torch.matmul(state, weight)).item()
 
         # Expert is controlled by some user-defined control function.
         if self.method == 'user-defined':

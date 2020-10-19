@@ -13,7 +13,8 @@ import numpy as np
 from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import MovingAvgRPE
 
-from agents import ObserverAgent, CartPoleExpertAgent
+from agents import ObserverAgent, ExpertAgent
+from pipelines import AgentPipeline
 
 
 def tuning_curve(
@@ -42,7 +43,8 @@ def tuning_curve(
         The vector code.
 
     """
-    return amp * torch.exp(-(1/2) * ((value - means) / sigma) ** 2)
+    device = value.get_device()
+    return amp * torch.exp(-(1/2) * ((value - means.to(device)) / sigma) ** 2)
 
 
 def population_coding(
@@ -76,8 +78,9 @@ def population_coding(
     means = torch.linspace(low, high, n_neurons)
     sigma = (high - low) / n_neurons
     spike_times = tuning_curve(value, time - 1, means, sigma)
-    spikes = (np.array(spike_times[:, None]) == range(time)).astype(int)
-    return torch.from_numpy(spikes)
+    spikes = (np.array(spike_times[:, None].to('cpu')) ==
+              range(time)).astype(int)
+    return torch.from_numpy(spikes.T)
 
 
 def cartpole_observation_encoder(
@@ -106,7 +109,10 @@ def cartpole_observation_encoder(
         The encoded data.
 
     """
+    if kwargs.get("n_neurons", -1) == -1:
+        kwargs["n_neurons"] = 10
     device = datum.get_device()
+    datum = datum[0]
     cart_position = population_coding(datum[0], time,
                                       kwargs["n_neurons"],
                                       low=-4.8, high=4.8)
@@ -119,16 +125,28 @@ def cartpole_observation_encoder(
     pole_agular_velocity = population_coding(datum[3], time,
                                              kwargs["n_neurons"],
                                              low=-10, high=10)
+
     encoded_datum = torch.stack([cart_position,
                                  cart_velocity,
                                  pole_angle,
                                  pole_agular_velocity
                                  ], dim=1)
-    return encoded_datum.to(device)
+
+    return encoded_datum.unsqueeze(1).to(device)
 
 
-environment = GymEnvironment('CartPole-v1')
+environment = GymEnvironment('CartPole-v0')
 environment.reset()
 
 observer = ObserverAgent(environment, dt=1.0, reward_fn=MovingAvgRPE)
-expert = CartPoleExpertAgent(environment)
+expert = ExpertAgent(environment, method='from_weight')
+
+pipeline = AgentPipeline(
+    observer_agent=observer,
+    expert_agent=expert,
+    encoding=cartpole_observation_encoder,
+    time=20,
+    num_episodes=1000,
+    )
+
+pipeline.train_by_observation(weight='hill_climbing.pt')

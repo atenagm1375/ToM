@@ -69,7 +69,7 @@ class AgentPipeline(EnvironmentPipeline):
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
 
-    def env_step(self) -> tuple[torch.Tensor, float, bool, dict]:
+    def env_step(self, **kwargs) -> tuple:
         """
         Perform single step of the environment.
 
@@ -115,7 +115,7 @@ class AgentPipeline(EnvironmentPipeline):
                     )[0]
                     tqdm.write(f"too many times {self.last_action} ")
             else:
-                self.action = self.action_function()
+                self.action = self.action_function(**kwargs)
 
             if self.last_action == self.action:
                 self.action_counter += 1
@@ -139,7 +139,7 @@ class AgentPipeline(EnvironmentPipeline):
 
     def step_(
             self,
-            gym_batch: tuple[torch.Tensor, float, bool, dict],
+            gym_batch: tuple,
             **kwargs
             ) -> None:
         """
@@ -157,15 +157,17 @@ class AgentPipeline(EnvironmentPipeline):
         """
         obs, reward, done, info = gym_batch
 
-        obs.unsqueeze(0)  # Add a dimension for time.
         inputs = {
             k: self.encoding(obs, self.time)
-            for k in self.inputs
+            for k in self.inputs if k != "PFC"
             }
+        inputs["PFC"] = torch.poisson(torch.rand(self.time,
+                                                 self.network.layers["PFC"].n)
+                                      ).byte().to(self.device)
 
         # TODO define keyword arguments for reward function
 
-        self.network.run(inputs=inputs, time=self.time,
+        self.network.run(inputs=inputs, time=self.time, reward=reward,
                          **kwargs)
 
         if done:
@@ -199,7 +201,7 @@ class AgentPipeline(EnvironmentPipeline):
             done = False
             while not done:
                 # The result of expert's action.
-                obs, reward, done, info = self.env_step()
+                obs, reward, done, info = self.env_step(**kwargs)
 
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
