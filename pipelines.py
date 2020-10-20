@@ -243,6 +243,6 @@ class AgentPipeline(EnvironmentPipeline):
         done = False
         while not done:
             # The result of observer's action.
-            obs, reward, done, info = self.env_step()
+            obs, reward, done, info = self.env_step(**kwargs)
 
             self.step((obs, reward, done, info), **kwargs)
