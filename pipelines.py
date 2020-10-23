@@ -236,11 +236,15 @@ class AgentPipeline(EnvironmentPipeline):
         """
         self.observer_agent.network.train(False)
 
-        self.action_function = self.observer_agent.select_action
-
         self.reset_state_variables()
 
-        done = False
+        self.action_function = None
+        self.action = self.env.action_space.sample()
+        obs, reward, done, info = self.env_step(**kwargs)
+        self.step((obs, reward, done, info), **kwargs)
+
+        self.action_function = self.observer_agent.select_action
+
         while not done:
             # The result of observer's action.
             obs, reward, done, info = self.env_step(**kwargs)

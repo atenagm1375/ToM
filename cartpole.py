@@ -12,6 +12,7 @@ import numpy as np
 
 from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import MovingAvgRPE
+from bindsnet.network.monitors import Monitor
 
 from agents import ObserverAgent, ExpertAgent
 from pipelines import AgentPipeline
@@ -43,7 +44,7 @@ def tuning_curve(
         The vector code.
 
     """
-    device = value.get_device()
+    device = 'cpu' if value.get_device() < 0 else 'cuda'
     return amp * torch.exp(-(1/2) * ((value - means.to(device)) / sigma) ** 2)
 
 
@@ -78,7 +79,7 @@ def population_coding(
     means = torch.linspace(low, high, n_neurons)
     sigma = (high - low) / n_neurons
     spike_times = tuning_curve(value, time - 1, means, sigma)
-    spikes = (np.array(spike_times[:, None].to('cpu')) ==
+    spikes = (np.array(spike_times[:, None].to('cpu')).astype(int) ==
               range(time)).astype(int)
     return torch.from_numpy(spikes.T)
 
@@ -111,7 +112,7 @@ def cartpole_observation_encoder(
     """
     if kwargs.get("n_neurons", -1) == -1:
         kwargs["n_neurons"] = 10
-    device = datum.get_device()
+    device = "cpu" if datum.get_device() < 0 else 'cuda'
     datum = datum[0]
     cart_position = population_coding(datum[0], time,
                                       kwargs["n_neurons"],
@@ -141,12 +142,17 @@ environment.reset()
 observer = ObserverAgent(environment, dt=1.0, reward_fn=MovingAvgRPE)
 expert = ExpertAgent(environment, method='from_weight')
 
+observer.network.add_monitor(
+    Monitor(observer.network.layers["S2"], ["s"]), "S2"
+    )
+
 pipeline = AgentPipeline(
     observer_agent=observer,
     expert_agent=expert,
     encoding=cartpole_observation_encoder,
-    time=20,
-    num_episodes=1000,
+    time=15,
+    num_episodes=100,
     )
 
 pipeline.train_by_observation(weight='hill_climbing.pt')
+pipeline.test()

@@ -112,27 +112,27 @@ class ObserverAgent(Agent):
         self.method = method
 
         input_shape = self.environment.env.observation_space.shape
-        output_shape = self.environment.env.action_space.shape
+        output_shape = self.environment.env.action_space.n
 
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
         s2 = Input(shape=[*input_shape, 10], traces=True)
         pfc = Input(n=1000, traces=True)
-        sts = DiehlAndCookNodes(n=500, traces=True,
-                                thresh=-52.0,
+        sts = DiehlAndCookNodes(n=100, traces=True,
+                                thresh=-56.0,
                                 rest=-65.0,
                                 reset=-65.0,
                                 refrac=5,
-                                tc_decay=100.0,
+                                tc_decay=10.0,
                                 theta_plus=0.05,
                                 tc_theta_decay=1e7)
-        pm = DiehlAndCookNodes(shape=[*output_shape, 20], traces=True,
-                               thresh=-52.0,
+        pm = DiehlAndCookNodes(shape=[output_shape, 20], traces=True,
+                               thresh=-56.0,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=5,
-                               tc_decay=100.0,
+                               tc_decay=10.0,
                                theta_plus=0.05,
                                tc_theta_decay=1e7)
 
@@ -152,7 +152,19 @@ class ObserverAgent(Agent):
                             update_rule=MSTDPET,
                             wmin=0.0,
                             wmax=1.0,
-                            norm=0.25 * pfc.n)
+                            norm=0.05 * pfc.n)
+        pfc_sts = Connection(pfc, sts,
+                             nu=[0.05, 0.04],
+                             update_rule=WeightDependentPostPre,
+                             wmin=0.0,
+                             wmax=1.0,
+                             norm=0.05 * pfc.n)
+        pm_pfc = Connection(pm, pfc,
+                            nu=[0.05, 0.04],
+                            update_rule=WeightDependentPostPre,
+                            wmin=0.0,
+                            wmax=1.0,
+                            norm=0.05 * pfc.n)
         pm_pm = Connection(pm, pm,
                            nu=[0.05, 0.04],
                            wmin=-0.1,
@@ -166,6 +178,8 @@ class ObserverAgent(Agent):
         self.network.add_connection(s2_sts, "S2", "STS")
         self.network.add_connection(sts_pm, "STS", "PM")
         self.network.add_connection(pfc_pm, "PFC", "PM")
+        self.network.add_connection(pfc_sts, "PFC", "STS")
+        self.network.add_connection(pm_pfc, "PM", "PFC")
         self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.add_monitor(
