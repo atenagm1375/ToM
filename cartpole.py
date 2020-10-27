@@ -23,7 +23,7 @@ def tuning_curve(
         amp: int,
         means: torch.Tensor,
         sigma: float = 1.0
-        ) -> torch.Tensor:
+) -> torch.Tensor:
     """
     Compute the tuning curve vector for the value.
 
@@ -45,7 +45,7 @@ def tuning_curve(
 
     """
     device = 'cpu' if value.get_device() < 0 else 'cuda'
-    return amp * torch.exp(-(1/2) * ((value - means.to(device)) / sigma) ** 2)
+    return amp * torch.exp(-(1 / 2) * ((value - means.to(device)) / sigma) ** 2)
 
 
 def population_coding(
@@ -88,7 +88,7 @@ def cartpole_observation_encoder(
         datum: torch.Tensor,
         time: int,
         **kwargs,
-        ) -> torch.Tensor:
+) -> torch.Tensor:
     """
     Encode observation vector.
 
@@ -136,23 +136,37 @@ def cartpole_observation_encoder(
     return encoded_datum.unsqueeze(1).to(device)
 
 
+def noise_policy(episode, num_episodes, **kwargs):
+    return np.exp(-5 * episode/num_episodes)
+
+
 environment = GymEnvironment('CartPole-v0')
 environment.reset()
 
-observer = ObserverAgent(environment, dt=1.0, reward_fn=MovingAvgRPE)
-expert = ExpertAgent(environment, method='from_weight')
+observer = ObserverAgent(environment, dt=1.0, method='first_spike',
+                         reward_fn=MovingAvgRPE)
+expert = ExpertAgent(environment, method='from_weight',
+                     noise_policy=noise_policy)
 
 observer.network.add_monitor(
     Monitor(observer.network.layers["S2"], ["s"]), "S2"
-    )
+)
+observer.network.add_monitor(
+    Monitor(observer.network.connections[("S2", "PM")], ["w"]), "S2-PM"
+)
 
 pipeline = AgentPipeline(
     observer_agent=observer,
     expert_agent=expert,
     encoding=cartpole_observation_encoder,
     time=15,
-    num_episodes=100,
-    )
+    num_episodes=250,
+    # plot_interval=1,
+    # render_interval=1
+)
 
-pipeline.train_by_observation(weight='hill_climbing.pt')
-pipeline.test()
+pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
+print("Observation Finished")
+for i in range(100):
+    pipeline.test()
+    print(f"test: {i+1} - accumulated reward: {pipeline.accumulated_reward}")

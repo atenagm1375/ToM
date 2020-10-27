@@ -52,7 +52,7 @@ class AgentPipeline(EnvironmentPipeline):
             expert_agent: ExpertAgent,
             encoding: callable = None,
             **kwargs,
-            ) -> None:
+    ) -> None:
 
         assert (observer_agent.environment == expert_agent.environment), \
             "Observer and Expert must be located in the same environment."
@@ -65,7 +65,7 @@ class AgentPipeline(EnvironmentPipeline):
             encoding=encoding,
             allow_gpu=observer_agent.allow_gpu,
             **kwargs,
-            )
+        )
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
 
@@ -100,29 +100,33 @@ class AgentPipeline(EnvironmentPipeline):
 
         # Choose action based on output neuron spiking.
         if self.action_function is not None:
-            self.last_action = self.action
-            if torch.rand(1) < self.percent_of_random_action:
-                self.action = torch.randint(
-                    low=0, high=self.env.action_space.n, size=(1,)
-                )[0]
-            elif self.action_counter > self.random_action_after:
-                if self.last_action == 0:  # last action was start b
-                    self.action = 1  # next action will be fire b
-                    tqdm.write(f"Fire -> too many times {self.last_action} ")
-                else:
-                    self.action = torch.randint(
-                        low=0, high=self.env.action_space.n, size=(1,)
-                    )[0]
-                    tqdm.write(f"too many times {self.last_action} ")
-            else:
-                self.action = self.action_function(**kwargs)
+            # self.last_action = self.action
+            # if torch.rand(1) < self.percent_of_random_action:
+            #     self.action = torch.randint(
+            #         low=0, high=self.env.action_space.n, size=(1,)
+            #     )[0]
+            # elif self.action_counter > self.random_action_after:
+            #     if self.last_action == 0:  # last action was start b
+            #         self.action = 1  # next action will be fire b
+            #         tqdm.write(f"Fire -> too many times {self.last_action} ")
+            #     else:
+            #         self.action = torch.randint(
+            #             low=0, high=self.env.action_space.n, size=(1,)
+            #         )[0]
+            #         tqdm.write(f"too many times {self.last_action} ")
+            # else:
+            self.action = self.action_function(episode=self.episode,
+                                               num_episodes=self.num_episodes,
+                                               **kwargs)
 
-            if self.last_action == self.action:
-                self.action_counter += 1
-            else:
-                self.action_counter = 0
+            # if self.last_action == self.action:
+            #     self.action_counter += 1
+            # else:
+            #     self.action_counter = 0
 
         # Run a step of the environment.
+        if not isinstance(self.action, int):
+            self.action = self.action.to('cpu').numpy()
         obs, reward, done, info = self.env.step(self.action)
 
         # Set reward in case of delay.
@@ -141,7 +145,7 @@ class AgentPipeline(EnvironmentPipeline):
             self,
             gym_batch: tuple,
             **kwargs
-            ) -> None:
+    ) -> None:
         """
         Run one step of the oberserver's network.
 
@@ -160,10 +164,10 @@ class AgentPipeline(EnvironmentPipeline):
         inputs = {
             k: self.encoding(obs, self.time)
             for k in self.inputs if k != "PFC"
-            }
-        inputs["PFC"] = torch.poisson(torch.rand(self.time,
-                                                 self.network.layers["PFC"].n)
-                                      ).byte().to(self.device)
+        }
+        # inputs["PFC"] = torch.poisson(torch.rand(self.time,
+        #                                          self.network.layers["PFC"].n)
+        #                               ).byte().to(self.device)
 
         # TODO define keyword arguments for reward function
 

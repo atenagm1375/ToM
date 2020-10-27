@@ -39,7 +39,7 @@ class Agent(ABC):
             self,
             environment: GymEnvironment,
             allow_gpu: bool = True,
-            ) -> None:
+    ) -> None:
 
         super().__init__()
 
@@ -105,7 +105,7 @@ class ObserverAgent(Agent):
             learning: bool = True,
             reward_fn: AbstractReward = None,
             allow_gpu: bool = True,
-            ) -> None:
+    ) -> None:
 
         super().__init__(environment, allow_gpu)
 
@@ -118,68 +118,32 @@ class ObserverAgent(Agent):
 
         # TODO Consider network structure
         s2 = Input(shape=[*input_shape, 10], traces=True)
-        pfc = Input(n=1000, traces=True)
-        sts = DiehlAndCookNodes(n=100, traces=True,
-                                thresh=-56.0,
-                                rest=-65.0,
-                                reset=-65.0,
-                                refrac=5,
-                                tc_decay=10.0,
-                                theta_plus=0.05,
-                                tc_theta_decay=1e7)
-        pm = DiehlAndCookNodes(shape=[output_shape, 20], traces=True,
-                               thresh=-56.0,
+        pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
+                               thresh=-60.0,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=5,
-                               tc_decay=10.0,
-                               theta_plus=0.05,
+                               tc_decay=100.0,
+                               theta_plus=0.1,
                                tc_theta_decay=1e7)
 
-        s2_sts = Connection(s2, sts,
-                            nu=[0.05, 0.04],
-                            update_rule=WeightDependentPostPre,
-                            wmin=0.0,
-                            wmax=0.2)
-        sts_pm = Connection(sts, pm,
-                            nu=[0.05, 0.04],
-                            update_rule=MSTDPET,
-                            wmin=0.0,
-                            wmax=1.0,
-                            norm=0.5 * sts.n)
-        pfc_pm = Connection(pfc, pm,
-                            nu=[0.05, 0.04],
-                            update_rule=MSTDPET,
-                            wmin=0.0,
-                            wmax=1.0,
-                            norm=0.05 * pfc.n)
-        pfc_sts = Connection(pfc, sts,
-                             nu=[0.05, 0.04],
-                             update_rule=WeightDependentPostPre,
-                             wmin=0.0,
-                             wmax=1.0,
-                             norm=0.05 * pfc.n)
-        pm_pfc = Connection(pm, pfc,
-                            nu=[0.05, 0.04],
-                            update_rule=WeightDependentPostPre,
-                            wmin=0.0,
-                            wmax=1.0,
-                            norm=0.05 * pfc.n)
+        s2_pm = Connection(s2, pm,
+                           nu=[0.08, 0.06],
+                           update_rule=MSTDPET,
+                           wmin=0.001,
+                           wmax=1.0,
+                           norm=0.2 * s2.n
+                           )
         pm_pm = Connection(pm, pm,
                            nu=[0.05, 0.04],
-                           wmin=-0.1,
-                           wmax=0.)
+                           wmin=-0.001,
+                           wmax=-0.005
+                           )
 
         self.network.add_layer(s2, "S2")
-        self.network.add_layer(sts, "STS")
-        self.network.add_layer(pfc, "PFC")
         self.network.add_layer(pm, "PM")
 
-        self.network.add_connection(s2_sts, "S2", "STS")
-        self.network.add_connection(sts_pm, "STS", "PM")
-        self.network.add_connection(pfc_pm, "PFC", "PM")
-        self.network.add_connection(pfc_sts, "PFC", "STS")
-        self.network.add_connection(pm_pfc, "PM", "PFC")
+        self.network.add_connection(s2_pm, "S2", "PM")
         self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.add_monitor(
@@ -215,6 +179,7 @@ class ObserverAgent(Agent):
                 return spikes[0, 1]
 
         # Select action using softmax.
+        # TODO fix bug
         if self.method == 'softmax':
             spikes = torch.sum(spikes, dim=0)
             probs = torch.softmax(spikes, dim=0)
@@ -244,16 +209,24 @@ class ExpertAgent(Agent):
     allow_gpu : bool, optional
         Allows automatic transfer to the GPU. The default is True.
 
+    Keyword Arguments
+    -----------------
+    noise_policy : callable
+        The policy by which the noise rate reduces along episodes.
+        Used when method is set to `from_weight`.
+
     """
 
     def __init__(self,
                  environment: GymEnvironment,
                  method: str = 'random',
                  allow_gpu: bool = True,
+                 **kwargs
                  ) -> None:
 
         super().__init__(environment, allow_gpu)
         self.method = method
+        self.noise_policy = kwargs.get('noise_policy', lambda x: 0.5)
 
     def select_action(self,
                       **kwargs) -> int:
@@ -267,6 +240,10 @@ class ExpertAgent(Agent):
                 1) String of the path to weight file.
                 2) The weight tensor itself.
             Used when method is set to `from_weight`.
+        episode : int
+            The current episode number. Useful when `method='from_weight'`.
+        num_episodes : int
+            Total number of episodes. Useful when `method='from_weight'`.
         function : callable
             The control function define by user.
             Used when method is set to `user-defined`.
@@ -291,9 +268,12 @@ class ExpertAgent(Agent):
         # Expert acts based on the weight matrix of a trained network.
         if self.method == 'from_weight':
             weight = kwargs['weight']
+            p = self.noise_policy(**kwargs)
             if isinstance(weight, str):
                 weight = torch.load(weight)
 
+            if np.random.uniform() < p:
+                return self.environment.action_space.sample()
             return torch.argmax(torch.matmul(state, weight)).item()
 
         # Expert is controlled by some user-defined control function.
