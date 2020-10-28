@@ -69,6 +69,13 @@ class AgentPipeline(EnvironmentPipeline):
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
 
+        self.plot_config = {
+            "data_step": True,
+            # "obs_step": True,
+            "reward_eps": 1,
+            "data_length": 200,
+        }
+
     def env_step(self, **kwargs) -> tuple:
         """
         Perform single step of the environment.

@@ -13,6 +13,7 @@ import numpy as np
 from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import MovingAvgRPE
 from bindsnet.network.monitors import Monitor
+from bindsnet.analysis.plotting import plot_weights
 
 from agents import ObserverAgent, ExpertAgent
 from pipelines import AgentPipeline
@@ -78,7 +79,7 @@ def population_coding(
     """
     means = torch.linspace(low, high, n_neurons)
     sigma = (high - low) / n_neurons
-    spike_times = tuning_curve(value, time - 1, means, sigma)
+    spike_times = time - tuning_curve(value, time - 1, means, sigma) - 1
     spikes = (np.array(spike_times[:, None].to('cpu')).astype(int) ==
               range(time)).astype(int)
     return torch.from_numpy(spikes.T)
@@ -160,13 +161,17 @@ pipeline = AgentPipeline(
     expert_agent=expert,
     encoding=cartpole_observation_encoder,
     time=15,
-    num_episodes=250,
-    # plot_interval=1,
+    num_episodes=100,
+    plot_interval=1,
     # render_interval=1
 )
 
 pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
 print("Observation Finished")
+
+w = pipeline.network.connections[("S2","PM")].w
+plot_weights(w)
+
 for i in range(100):
     pipeline.test()
     print(f"test: {i+1} - accumulated reward: {pipeline.accumulated_reward}")

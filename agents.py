@@ -17,7 +17,7 @@ from bindsnet.network import Network
 from bindsnet.learning.reward import AbstractReward
 from bindsnet.network.nodes import Input, DiehlAndCookNodes
 from bindsnet.network.topology import Connection
-from bindsnet.learning import WeightDependentPostPre, MSTDPET
+from bindsnet.learning import MSTDPET
 from bindsnet.network.monitors import Monitor
 
 
@@ -119,25 +119,26 @@ class ObserverAgent(Agent):
         # TODO Consider network structure
         s2 = Input(shape=[*input_shape, 10], traces=True)
         pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
-                               thresh=-60.0,
+                               thresh=-62.0,
                                rest=-65.0,
                                reset=-65.0,
-                               refrac=5,
+                               refrac=4,
                                tc_decay=100.0,
-                               theta_plus=0.1,
-                               tc_theta_decay=1e7)
+                               theta_plus=0.02,
+                               tc_theta_decay=1e4)
 
         s2_pm = Connection(s2, pm,
-                           nu=[0.08, 0.06],
+                           nu=[0.008, 0.006],
                            update_rule=MSTDPET,
                            wmin=0.001,
                            wmax=1.0,
-                           norm=0.2 * s2.n
+                           norm=0.2 * s2.n,
+                           tc_plus=4.,
+                           tc_minus=4.,
+                           tc_e_trace=4.5
                            )
         pm_pm = Connection(pm, pm,
-                           nu=[0.05, 0.04],
-                           wmin=-0.001,
-                           wmax=-0.005
+                           w=-0.002 * torch.eye(pm.n)
                            )
 
         self.network.add_layer(s2, "S2")
