@@ -17,7 +17,7 @@ from bindsnet.network import Network
 from bindsnet.learning.reward import AbstractReward
 from bindsnet.network.nodes import Input, DiehlAndCookNodes
 from bindsnet.network.topology import Connection
-from bindsnet.learning import MSTDPET
+from bindsnet.learning import MSTDPET, PostPre
 from bindsnet.network.monitors import Monitor
 
 
@@ -117,7 +117,7 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[*input_shape, 10], traces=True)
+        s2 = DiehlAndCookNodes(shape=[*input_shape, 10], traces=True)
         pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
                                thresh=-62.0,
                                rest=-65.0,
@@ -137,6 +137,13 @@ class ObserverAgent(Agent):
                            tc_minus=4.,
                            tc_e_trace=4.5
                            )
+        pm_s2 = Connection(pm, s2,
+                           nu=[0.008, 0.006],
+                           update_rule=PostPre,
+                           wmin=0.001,
+                           wmax=1.0,
+                           norm=0.5 * pm.n
+                           )
         pm_pm = Connection(pm, pm,
                            w=-0.002 * torch.eye(pm.n)
                            )
@@ -145,6 +152,7 @@ class ObserverAgent(Agent):
         self.network.add_layer(pm, "PM")
 
         self.network.add_connection(s2_pm, "S2", "PM")
+        self.network.add_connection(pm_s2, "PM", "S2")
         self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.add_monitor(

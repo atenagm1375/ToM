@@ -168,9 +168,11 @@ class AgentPipeline(EnvironmentPipeline):
         """
         obs, reward, done, info = gym_batch
 
-        inputs = {
-            k: self.encoding(obs, self.time)
-            for k in self.inputs if k != "PFC"
+        s2 = self.observer_agent.network.layers["S2"]
+        v = s2.thresh - s2.rest
+
+        injects_v = {
+            "S2": v ** 2 * self.encoding(obs, self.time)
         }
         # inputs["PFC"] = torch.poisson(torch.rand(self.time,
         #                                          self.network.layers["PFC"].n)
@@ -178,8 +180,8 @@ class AgentPipeline(EnvironmentPipeline):
 
         # TODO define keyword arguments for reward function
 
-        self.network.run(inputs=inputs, time=self.time, reward=reward,
-                         **kwargs)
+        self.network.run(inputs={}, time=self.time, reward=reward,
+                         injects_v=injects_v, **kwargs)
 
         if done:
             if self.network.reward_fn is not None:
@@ -244,7 +246,7 @@ class AgentPipeline(EnvironmentPipeline):
         Returns
         -------
         None
-        
+
         """
         self.observer_agent.network.train(True)
 
