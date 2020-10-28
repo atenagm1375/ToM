@@ -224,6 +224,60 @@ class AgentPipeline(EnvironmentPipeline):
             )
             self.episode += 1
 
+    def train_by_observation_action(
+            self,
+            action_interval: int = 10,
+            **kwargs
+    ) -> None:
+        """
+        Train observer agent by frequent observation-action trials.
+
+        Parameters
+        ----------
+        action_interval: int, optional
+            Number of observation episodes before an action taking episode.
+            The default is 10.
+
+        Keyword Arguments
+        -----------------
+
+        Returns
+        -------
+        None
+        
+        """
+        self.observer_agent.network.train(True)
+
+        while self.episode < self.num_episodes:
+            self.action_function = self.expert_agent.select_action
+            self.reset_state_variables()
+            done = False
+            while not done:
+                obs, reward, done, info = self.env_step(**kwargs)
+
+                self.step((obs, reward, done, info), **kwargs)
+
+            print("Observing...\n"
+                f"Episode: {self.episode} - "
+                f"accumulated reward: {self.accumulated_reward:.2f}"
+            )
+
+            if (self.episode + 1) % action_interval == 0:
+                self.action_function = self.observer_agent.select_action
+                self.reset_state_variables()
+                done = False
+                while not done:
+                    obs, reward, done, info = self.env_step(**kwargs)
+
+                    self.step((obs, reward, done, info), **kwargs)
+
+                print("Taking action...\n"
+                    f"Episode: {self.episode} - "
+                    f"accumulated reward: {self.accumulated_reward:.2f}"
+                )
+
+            self.episode += 1
+
     def self_train(self, **kwargs) -> None:
         """
         Train observer agent's network by acting in the environment.
