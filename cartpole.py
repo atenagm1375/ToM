@@ -153,7 +153,10 @@ observer.network.add_monitor(
     Monitor(observer.network.layers["S2"], ["s"]), "S2"
 )
 observer.network.add_monitor(
-    Monitor(observer.network.connections[("S2", "PM")], ["w"]), "S2-PM"
+    Monitor(observer.network.layers["STS"], ["s"]), "STS"
+)
+observer.network.add_monitor(
+    Monitor(observer.network.connections[("STS", "PM")], ["w"]), "STS-PM"
 )
 
 pipeline = AgentPipeline(
