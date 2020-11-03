@@ -117,28 +117,37 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[*input_shape, 10], traces=True)
+        s2 = Input(shape=[*input_shape, 10], traces=True,
+                   traces_additive=True,
+                   tc_trace=5.0,
+                   trace_scale=1.0
+                   )
         pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
-                               thresh=-62.0,
+                               traces_additive=True,
+                               tc_trace=5.0,
+                               trace_scale=1.0,
+                               thresh=-61.75,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=4,
-                               tc_decay=100.0,
-                               theta_plus=0.02,
-                               tc_theta_decay=1e4)
+                               tc_decay=1e7,
+                               theta_plus=0.0,
+                               tc_theta_decay=1e7,
+                               one_spike=True
+                               )
 
         s2_pm = Connection(s2, pm,
-                           nu=[0.008, 0.006],
+                           nu=[0.04, 0.025],
                            update_rule=MSTDPET,
                            wmin=0.001,
                            wmax=1.0,
-                           norm=0.2 * s2.n,
-                           tc_plus=4.,
-                           tc_minus=4.,
-                           tc_e_trace=4.5
+                           # norm=0.2 * s2.n,
+                           tc_plus=2.,
+                           tc_minus=2.,
+                           tc_e_trace=10.
                            )
         pm_pm = Connection(pm, pm,
-                           w=-0.002 * torch.eye(pm.n)
+                           w=-5e-5 * torch.eye(pm.n)
                            )
 
         self.network.add_layer(s2, "S2")
@@ -175,6 +184,7 @@ class ObserverAgent(Agent):
             spikes = spikes.squeeze().squeeze().nonzero()
 
             if spikes.shape[0] == 0:
+                print("random")
                 return self.environment.action_space.sample()
             else:
                 return spikes[0, 1]

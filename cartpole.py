@@ -7,6 +7,11 @@ cartpole.py
 
 ==============================================================================.
 """
+import sys
+
+sys.path.append('../bindsnet/')
+
+
 import torch
 import numpy as np
 
@@ -162,14 +167,17 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
-    plot_interval=1,
+    # plot_interval=5,
     # render_interval=1
 )
+
+w = pipeline.network.connections[("S2", "PM")].w
+plot_weights(w)
 
 pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
 print("Observation Finished")
 
-w = pipeline.network.connections[("S2","PM")].w
+w = pipeline.network.connections[("S2", "PM")].w
 plot_weights(w)
 
 for i in range(100):

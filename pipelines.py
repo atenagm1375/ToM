@@ -72,7 +72,7 @@ class AgentPipeline(EnvironmentPipeline):
         self.plot_config = {
             "data_step": True,
             # "obs_step": True,
-            "reward_eps": 1,
+            # "reward_eps": 1,
             "data_length": 200,
         }
 
@@ -178,7 +178,7 @@ class AgentPipeline(EnvironmentPipeline):
 
         # TODO define keyword arguments for reward function
 
-        self.network.run(inputs=inputs, time=self.time, reward=reward,
+        self.network.run(inputs=inputs, time=self.time, reward=reward/200,
                          **kwargs)
 
         if done:
@@ -244,7 +244,7 @@ class AgentPipeline(EnvironmentPipeline):
         Returns
         -------
         None
-        
+
         """
         self.observer_agent.network.train(True)
 
