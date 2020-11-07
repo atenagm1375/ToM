@@ -175,7 +175,7 @@ w = pipeline.network.connections[("S2", "PM")].w
 plot_weights(w)
 print(w)
 
-pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt', a_plus=0.1)
+pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt', a_plus=0.2, a_minus=-0.8)
 print("Observation Finished")
 
 w = pipeline.network.connections[("S2", "PM")].w

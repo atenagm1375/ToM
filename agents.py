@@ -119,14 +119,14 @@ class ObserverAgent(Agent):
         # TODO Consider network structure
         s2 = Input(shape=[*input_shape, 10], traces=True,
                    traces_additive=True,
-                   tc_trace=15.0,
+                   tc_trace=6.0,
                    trace_scale=0.8
                    )
         pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
                                traces_additive=True,
                                tc_trace=6.0,
                                trace_scale=0.8,
-                               thresh=-53.0,
+                               thresh=-54.0,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=5,
@@ -137,13 +137,13 @@ class ObserverAgent(Agent):
                                )
 
         s2_pm = Connection(s2, pm,
-                           nu=0.01,
+                           nu=0.05,
                            update_rule=MSTDPET,
-                           wmin=0.001,
+                           wmin=0.0,
                            wmax=1.0,
                            # norm=0.2 * s2.n,
                            tc_plus=3.,
-                           tc_minus=3.,
+                           tc_minus=4.,
                            tc_e_trace=8.,
                            )
         pm_pm = Connection(pm, pm,
