@@ -119,32 +119,32 @@ class ObserverAgent(Agent):
         # TODO Consider network structure
         s2 = Input(shape=[*input_shape, 10], traces=True,
                    traces_additive=True,
-                   tc_trace=5.0,
-                   trace_scale=1.0
+                   tc_trace=15.0,
+                   trace_scale=0.8
                    )
         pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
                                traces_additive=True,
-                               tc_trace=5.0,
-                               trace_scale=1.0,
-                               thresh=-61.75,
+                               tc_trace=6.0,
+                               trace_scale=0.8,
+                               thresh=-53.0,
                                rest=-65.0,
                                reset=-65.0,
-                               refrac=4,
-                               tc_decay=1e7,
-                               theta_plus=0.0,
-                               tc_theta_decay=1e7,
+                               refrac=5,
+                               tc_decay=4.0,
+                               theta_plus=2e-4,
+                               tc_theta_decay=5e6,
                                one_spike=True
                                )
 
         s2_pm = Connection(s2, pm,
-                           nu=[0.04, 0.025],
+                           nu=0.01,
                            update_rule=MSTDPET,
                            wmin=0.001,
                            wmax=1.0,
                            # norm=0.2 * s2.n,
-                           tc_plus=2.,
-                           tc_minus=2.,
-                           tc_e_trace=10.
+                           tc_plus=3.,
+                           tc_minus=3.,
+                           tc_e_trace=8.,
                            )
         pm_pm = Connection(pm, pm,
                            w=-5e-5 * torch.eye(pm.n)

@@ -178,7 +178,7 @@ class AgentPipeline(EnvironmentPipeline):
 
         # TODO define keyword arguments for reward function
 
-        self.network.run(inputs=inputs, time=self.time, reward=reward/200,
+        self.network.run(inputs=inputs, time=self.time, reward=reward,
                          **kwargs)
 
         if done:

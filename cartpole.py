@@ -84,7 +84,7 @@ def population_coding(
     """
     means = torch.linspace(low, high, n_neurons)
     sigma = (high - low) / n_neurons
-    spike_times = time - tuning_curve(value, time - 1, means, sigma) - 1
+    spike_times = tuning_curve(value, time, means, sigma)
     spikes = (np.array(spike_times[:, None].to('cpu')).astype(int) ==
               range(time)).astype(int)
     return torch.from_numpy(spikes.T)
@@ -166,19 +166,21 @@ pipeline = AgentPipeline(
     expert_agent=expert,
     encoding=cartpole_observation_encoder,
     time=15,
-    num_episodes=100,
-    # plot_interval=5,
+    num_episodes=200,
+    plot_interval=1,
     # render_interval=1
 )
 
 w = pipeline.network.connections[("S2", "PM")].w
 plot_weights(w)
+print(w)
 
-pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
+pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt', a_plus=0.1)
 print("Observation Finished")
 
 w = pipeline.network.connections[("S2", "PM")].w
 plot_weights(w)
+print(w)
 
 for i in range(100):
     pipeline.test()
