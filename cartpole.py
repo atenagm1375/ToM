@@ -185,3 +185,7 @@ print(w)
 for i in range(100):
     pipeline.test()
     print(f"test: {i+1} - accumulated reward: {pipeline.accumulated_reward}")
+
+test_rewards = pipeline.reward_list[-100:]
+print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
+       np.mean(test_rewards))
