@@ -227,6 +227,7 @@ class AgentPipeline(EnvironmentPipeline):
     def train_by_observation_action(
             self,
             action_interval: int = 10,
+            num_repeated_actions: int = 1,
             **kwargs
     ) -> None:
         """
@@ -237,6 +238,8 @@ class AgentPipeline(EnvironmentPipeline):
         action_interval: int, optional
             Number of observation episodes before an action taking episode.
             The default is 10.
+        num_repeated_actions: int, optional
+            Number of actions to be taken after observation. The default is 1.
 
         Keyword Arguments
         -----------------
@@ -264,17 +267,18 @@ class AgentPipeline(EnvironmentPipeline):
 
             if (self.episode + 1) % action_interval == 0:
                 self.action_function = self.observer_agent.select_action
-                self.reset_state_variables()
-                done = False
-                while not done:
-                    obs, reward, done, info = self.env_step(**kwargs)
+                for repeated_action_counts in range(num_repeated_actions):
+                    self.env_reset()
+                    done = False
+                    while not done:
+                        obs, reward, done, info = self.env_step(**kwargs)
 
-                    self.step((obs, reward, done, info), **kwargs)
+                        self.step((obs, reward, done, info), **kwargs)
 
-                print("Taking action...\n"
-                    f"Episode: {self.episode} - "
-                    f"accumulated reward: {self.accumulated_reward:.2f}"
-                )
+                    print("Taking action...\n"
+                        f"Episode: {repeated_action_counts} - "
+                        f"accumulated reward: {self.accumulated_reward:.2f}"
+                    )
 
             self.episode += 1
 
@@ -315,3 +319,12 @@ class AgentPipeline(EnvironmentPipeline):
             obs, reward, done, info = self.env_step(**kwargs)
 
             self.step((obs, reward, done, info), **kwargs)
+
+    def env_reset(self) -> None:
+        self.env.reset()
+        self.accumulated_reward = 0.0
+        self.step_count = 0
+        self.overlay_start = True
+        self.action = torch.tensor(-1)
+        self.last_action = torch.tensor(-1)
+        self.action_counter = 0
