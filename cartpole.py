@@ -82,9 +82,9 @@ def population_coding(
         The population coded tensor.
 
     """
-    means = torch.linspace(low, high, n_neurons)
-    sigma = (high - low) / n_neurons
-    spike_times = tuning_curve(value, time, means, sigma)
+    sigma = (high - low) / (2 * n_neurons)
+    means = torch.linspace(low + 2 * sigma, high - 2 * sigma, n_neurons)
+    spike_times = time - tuning_curve(value, time, means, sigma)
     spikes = (np.array(spike_times[:, None].to('cpu')).astype(int) ==
               range(time)).astype(int)
     return torch.from_numpy(spikes.T)
@@ -166,7 +166,7 @@ pipeline = AgentPipeline(
     expert_agent=expert,
     encoding=cartpole_observation_encoder,
     time=15,
-    num_episodes=200,
+    num_episodes=100,
     plot_interval=1,
     # render_interval=1
 )
