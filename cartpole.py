@@ -149,8 +149,7 @@ def noise_policy(episode, num_episodes, **kwargs):
 environment = GymEnvironment('CartPole-v0')
 environment.reset()
 
-observer = ObserverAgent(environment, dt=1.0, method='first_spike',
-                         reward_fn=MovingAvgRPE)
+observer = ObserverAgent(environment, dt=1.0, method='softmax')
 expert = ExpertAgent(environment, method='from_weight',
                      noise_policy=noise_policy)
 
@@ -175,7 +174,7 @@ w = pipeline.network.connections[("S2", "PM")].w
 plot_weights(w)
 print(w)
 
-pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt', a_plus=0.2, a_minus=-0.8)
+pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
 print("Observation Finished")
 
 w = pipeline.network.connections[("S2", "PM")].w
