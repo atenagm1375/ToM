@@ -117,27 +117,27 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[*input_shape, 10], traces=True,
+        s2 = Input(shape=[1, 10], traces=True,
                    traces_additive=True,
                    tc_trace=15.0,
-                   trace_scale=0.8
+                   trace_scale=0.95
                    )
-        pm = DiehlAndCookNodes(shape=[output_shape, 10], traces=True,
+        pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
                                traces_additive=True,
                                tc_trace=15.0,
-                               trace_scale=0.8,
-                               thresh=-62.5,
+                               trace_scale=0.95,
+                               thresh=-64.1,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=5,
-                               tc_decay=15.0,
-                               theta_plus=0.,
-                               tc_theta_decay=5e7,
+                               tc_decay=100.0,
+                               theta_plus=0.0,
+                               tc_theta_decay=1e6,
                                one_spike=True
                                )
 
         s2_pm = Connection(s2, pm,
-                           nu=0.5,
+                           nu=0.005,
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
@@ -147,14 +147,14 @@ class ObserverAgent(Agent):
                            tc_e_trace=60.,
                            )
         pm_pm = Connection(pm, pm,
-                           w=-1e-5 * torch.ones(pm.n)
+                           w=-2e-4 * torch.ones(pm.n)
                            )
 
         self.network.add_layer(s2, "S2")
         self.network.add_layer(pm, "PM")
 
         self.network.add_connection(s2_pm, "S2", "PM")
-        self.network.add_connection(pm_pm, "PM", "PM")
+        # self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.add_monitor(
             Monitor(self.network.layers["PM"], ["s"]),

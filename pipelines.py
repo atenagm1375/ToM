@@ -175,11 +175,23 @@ class AgentPipeline(EnvironmentPipeline):
         # inputs["PFC"] = torch.poisson(torch.rand(self.time,
         #                                          self.network.layers["PFC"].n)
         #                               ).byte().to(self.device)
+        pm_n = self.network.layers["PM"].n
+        n_action = self.env.action_space.n
+        pm_v = torch.zeros(pm_n)
+        pm_v[pm_n//n_action * self.action:pm_n//n_action * (self.action + 1)] = 1
+        # injects_v = {
+        #     "PM": pm_v.view(self.time, self.env.action_space.n, -1).to(self.device)
+        # }
+        pm_v = pm_v.byte()
+        clamp = {
+            "PM": pm_v.to(self.device)
+        } if self.network.learning else {}
 
         # TODO define keyword arguments for reward function
+        reward = reward if reward > 0 else -1
 
-        self.network.run(inputs=inputs, time=self.time, reward=reward,
-                         **kwargs)
+        self.network.run(inputs=inputs, clamp=clamp, time=self.time,
+                         reward=reward, **kwargs)
 
         if done:
             if self.network.reward_fn is not None:

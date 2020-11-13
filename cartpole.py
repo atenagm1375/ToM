@@ -120,26 +120,27 @@ def cartpole_observation_encoder(
         kwargs["n_neurons"] = 10
     device = "cpu" if datum.get_device() < 0 else 'cuda'
     datum = datum[0]
-    cart_position = population_coding(datum[0], time,
-                                      kwargs["n_neurons"],
-                                      low=-4.8, high=4.8)
-    cart_velocity = population_coding(datum[1], time,
-                                      kwargs["n_neurons"],
-                                      low=-10, high=10)
+    # cart_position = population_coding(datum[0], time,
+    #                                   kwargs["n_neurons"],
+    #                                   low=-4.8, high=4.8)
+    # cart_velocity = population_coding(datum[1], time,
+    #                                   kwargs["n_neurons"],
+    #                                   low=-10, high=10)
     pole_angle = population_coding(datum[2], time,
                                    kwargs["n_neurons"],
                                    low=-0.418, high=0.418)
-    pole_agular_velocity = population_coding(datum[3], time,
-                                             kwargs["n_neurons"],
-                                             low=-10, high=10)
+    # pole_agular_velocity = population_coding(datum[3], time,
+    #                                          kwargs["n_neurons"],
+    #                                          low=-10, high=10)
 
-    encoded_datum = torch.stack([cart_position,
-                                 cart_velocity,
-                                 pole_angle,
-                                 pole_agular_velocity
-                                 ], dim=1)
+    # encoded_datum = torch.stack([cart_position,
+    #                              cart_velocity,
+    #                              pole_angle,
+    #                              pole_agular_velocity
+    #                              ], dim=1)
 
-    return encoded_datum.unsqueeze(1).to(device)
+    # return encoded_datum.unsqueeze(1).to(device)
+    return pole_angle.unsqueeze(1).to(device)
 
 
 def noise_policy(episode, num_episodes, **kwargs):
@@ -166,19 +167,19 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
-    plot_interval=1,
+    # plot_interval=1,
     # render_interval=1
 )
 
 w = pipeline.network.connections[("S2", "PM")].w
-plot_weights(w)
+# plot_weights(w)
 print(w)
 
 pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
 print("Observation Finished")
 
 w = pipeline.network.connections[("S2", "PM")].w
-plot_weights(w)
+# plot_weights(w)
 print(w)
 
 for i in range(100):
