@@ -120,15 +120,15 @@ class ObserverAgent(Agent):
         s2 = Input(shape=[1, 10], traces=True,
                    traces_additive=True,
                    tc_trace=15.0,
-                   trace_scale=0.95
+                   trace_scale=0.8
                    )
         pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
                                traces_additive=True,
                                tc_trace=15.0,
-                               trace_scale=0.95,
-                               thresh=-64.1,
+                               trace_scale=0.8,
+                               thresh=-64.3,
                                rest=-65.0,
-                               reset=-65.0,
+                               reset=-64.9,
                                refrac=5,
                                tc_decay=100.0,
                                theta_plus=0.0,
@@ -137,7 +137,7 @@ class ObserverAgent(Agent):
                                )
 
         s2_pm = Connection(s2, pm,
-                           nu=0.005,
+                           nu=0.0075,
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
