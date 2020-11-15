@@ -175,7 +175,7 @@ w = pipeline.network.connections[("S2", "PM")].w
 # plot_weights(w)
 print(w)
 
-pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
+pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt', n_neurons=10)
 print("Observation Finished")
 
 w = pipeline.network.connections[("S2", "PM")].w
@@ -183,7 +183,7 @@ w = pipeline.network.connections[("S2", "PM")].w
 print(w)
 
 for i in range(100):
-    pipeline.test()
+    pipeline.test(n_neurons=10)
     print(f"test: {i+1} - accumulated reward: {pipeline.accumulated_reward}")
 
 test_rewards = pipeline.reward_list[-100:]

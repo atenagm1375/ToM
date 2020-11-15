@@ -169,7 +169,7 @@ class AgentPipeline(EnvironmentPipeline):
         obs, reward, done, info = gym_batch
 
         inputs = {
-            k: self.encoding(obs, self.time)
+            k: self.encoding(obs, self.time, **kwargs)
             for k in self.inputs if k != "PFC"
         }
         # inputs["PFC"] = torch.poisson(torch.rand(self.time,
