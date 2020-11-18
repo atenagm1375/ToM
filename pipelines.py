@@ -226,6 +226,7 @@ class AgentPipeline(EnvironmentPipeline):
 
             prev_obs, prev_reward, prev_done, info = self.env_step(**kwargs)
 
+            new_done = False
             while not prev_done:
                 prev_done = new_done
                 # The result of expert's action.
