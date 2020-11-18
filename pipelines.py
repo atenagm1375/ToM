@@ -69,6 +69,8 @@ class AgentPipeline(EnvironmentPipeline):
         self.observer_agent = observer_agent
         self.expert_agent = expert_agent
 
+        self.representation_time = kwargs.get('representation_time', -1)
+
         self.plot_config = {
             "data_step": True,
             # "obs_step": True,
@@ -177,12 +179,13 @@ class AgentPipeline(EnvironmentPipeline):
         #                               ).byte().to(self.device)
         pm_n = self.network.layers["PM"].n
         n_action = self.env.action_space.n
-        pm_v = torch.zeros(pm_n)
-        pm_v[pm_n//n_action * self.action:pm_n//n_action * (self.action + 1)] = 1
+        pm_v = torch.zeros(self.time, pm_n)
+        pm_v[self.representation_time, pm_n//n_action * self.action: \
+                                    pm_n//n_action * (self.action + 1)] = 1
         # injects_v = {
         #     "PM": pm_v.view(self.time, self.env.action_space.n, -1).to(self.device)
         # }
-        pm_v = pm_v.byte()
+        pm_v = pm_v.view(self.time, n_action, -1).byte()
         clamp = {
             "PM": pm_v.to(self.device)
         } if self.network.learning else {}
@@ -221,14 +224,19 @@ class AgentPipeline(EnvironmentPipeline):
         while self.episode < self.num_episodes:
             self.reset_state_variables()
 
-            done = False
-            while not done:
+            prev_obs, prev_reward, prev_done, info = self.env_step(**kwargs)
+
+            while not prev_done:
+                prev_done = new_done
                 # The result of expert's action.
-                obs, reward, done, info = self.env_step(**kwargs)
+                if not prev_done:
+                    new_obs, new_reward, new_done, info = self.env_step(**kwargs)
 
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
-                self.step((obs, reward, done, info), **kwargs)
+                self.step((prev_obs, prev_reward, prev_done, info), **kwargs)
+                prev_obs = new_obs
+                prev_reward = new_reward
 
             print(
                 f"Episode: {self.episode} - "
@@ -331,6 +339,8 @@ class AgentPipeline(EnvironmentPipeline):
             obs, reward, done, info = self.env_step(**kwargs)
 
             self.step((obs, reward, done, info), **kwargs)
+
+        print("Test - accumulated reward:", self.accumulated_reward)
 
     def env_reset(self) -> None:
         self.env.reset()
