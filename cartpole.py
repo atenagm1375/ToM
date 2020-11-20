@@ -120,24 +120,24 @@ def cartpole_observation_encoder(
     device = "cpu" if datum.get_device() < 0 else 'cuda'
     datum = datum[0]
     # cart_position = population_coding(datum[0], time,
-    #                                   kwargs["n_neurons"],
+    #                                   n_neurons,
     #                                   low=-4.8, high=4.8)
     # cart_velocity = population_coding(datum[1], time,
-    #                                   kwargs["n_neurons"],
+    #                                   n_neurons,
     #                                   low=-10, high=10)
     pole_angle = population_coding(datum[2], time,
                                    n_neurons,
                                    low=-0.418, high=0.418).unsqueeze(1)
     # pole_agular_velocity = population_coding(datum[3], time,
-    #                                          kwargs["n_neurons"],
+    #                                          n_neurons,
     #                                          low=-10, high=10)
-
+    #
     # encoded_datum = torch.stack([cart_position,
     #                              cart_velocity,
     #                              pole_angle,
     #                              pole_agular_velocity
     #                              ], dim=1)
-
+    #
     # return encoded_datum.unsqueeze(1).to(device)
     return pole_angle.unsqueeze(1).to(device)
 
@@ -169,7 +169,7 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
-    representation_time=5,
+    representation_time=6,
     # plot_interval=1,
     # render_interval=1
 )

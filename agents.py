@@ -117,19 +117,19 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[1, 10], traces=True,
+        s2 = Input(shape=[1, 20], traces=True,
                    traces_additive=True,
-                   tc_trace=15.0,
+                   tc_trace=10.0,
                    trace_scale=0.8
                    )
         pm = DiehlAndCookNodes(shape=[output_shape, 1], traces=True,
                                traces_additive=True,
-                               tc_trace=15.0,
-                               trace_scale=0.8,
-                               thresh=-64.1,
+                               tc_trace=5.0,
+                               trace_scale=0.95,
+                               thresh=-64.,
                                rest=-65.0,
                                reset=-64.9,
-                               refrac=5,
+                               refrac=7,
                                tc_decay=30.0,
                                theta_plus=0.0,
                                tc_theta_decay=1e6,
@@ -137,17 +137,18 @@ class ObserverAgent(Agent):
                                )
 
         s2_pm = Connection(s2, pm,
-                           nu=0.0075,
+                           nu=0.065,
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
                            # norm=0.2 * s2.n,
-                           tc_plus=15.,
-                           tc_minus=15.,
+                           tc_plus=12.,
+                           tc_minus=12.,
                            tc_e_trace=60.,
+                           weight_decay=1e-7,
                            )
         pm_pm = Connection(pm, pm,
-                           w=-0.5 * torch.ones(pm.n)
+                           w=-0.05 * torch.ones(pm.n)
                            )
 
         self.network.add_layer(s2, "S2")
