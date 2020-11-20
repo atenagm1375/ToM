@@ -116,8 +116,7 @@ def cartpole_observation_encoder(
         The encoded data.
 
     """
-    if kwargs.get("n_neurons", -1) == -1:
-        kwargs["n_neurons"] = 10
+    n_neurons = 20
     device = "cpu" if datum.get_device() < 0 else 'cuda'
     datum = datum[0]
     # cart_position = population_coding(datum[0], time,
@@ -127,8 +126,8 @@ def cartpole_observation_encoder(
     #                                   kwargs["n_neurons"],
     #                                   low=-10, high=10)
     pole_angle = population_coding(datum[2], time,
-                                   kwargs["n_neurons"],
-                                   low=-0.418, high=0.418)
+                                   n_neurons,
+                                   low=-0.418, high=0.418).unsqueeze(1)
     # pole_agular_velocity = population_coding(datum[3], time,
     #                                          kwargs["n_neurons"],
     #                                          low=-10, high=10)
@@ -144,7 +143,7 @@ def cartpole_observation_encoder(
 
 
 def noise_policy(episode, num_episodes, **kwargs):
-    return np.exp(-5 * episode/num_episodes)
+    return np.exp(-4 * episode/num_episodes)
 
 
 environment = GymEnvironment('CartPole-v0')
@@ -158,6 +157,9 @@ observer.network.add_monitor(
     Monitor(observer.network.layers["S2"], ["s"]), "S2"
 )
 observer.network.add_monitor(
+    Monitor(observer.network.layers["PM"], ["s"]), "PM"
+)
+observer.network.add_monitor(
     Monitor(observer.network.connections[("S2", "PM")], ["w"]), "S2-PM"
 )
 
@@ -167,7 +169,7 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
-    representation_time=12
+    representation_time=5,
     # plot_interval=1,
     # render_interval=1
 )
@@ -185,7 +187,6 @@ print(w)
 
 for i in range(100):
     pipeline.test(n_neurons=10)
-    print(f"test: {i+1} - accumulated reward: {pipeline.accumulated_reward}")
 
 test_rewards = pipeline.reward_list[-100:]
 print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
