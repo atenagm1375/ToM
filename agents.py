@@ -117,7 +117,7 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[2, 20], traces=True,
+        s2 = Input(shape=[1, 30], traces=True,
                    traces_additive=True,
                    tc_trace=1.0,
                    trace_scale=0.0
@@ -126,11 +126,11 @@ class ObserverAgent(Agent):
                                traces_additive=True,
                                tc_trace=1.0,
                                trace_scale=0.0,
-                               thresh=-63.2,
+                               thresh=-63.8,
                                rest=-65.0,
                                reset=-65.0,
-                               refrac=5,
-                               tc_decay=8.0,
+                               refrac=4,
+                               tc_decay=6.0,
                                theta_plus=0.0,
                                tc_theta_decay=1e6,
                                one_spike=True
@@ -155,7 +155,7 @@ class ObserverAgent(Agent):
                            weight_decay=1e-7,
                            )
         pm_pm = Connection(pm, pm,
-                           w=-0.005 * torch.ones(pm.n)
+                           w=-0.05 * torch.ones(pm.n)
                            )
 
         self.network.add_layer(s2, "S2")
