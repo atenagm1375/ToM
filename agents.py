@@ -173,7 +173,7 @@ class ObserverAgent(Agent):
         self.network.add_layer(pm, "PM")
 
         self.network.add_connection(s2_pm, "S2", "PM")
-        # self.network.add_connection(pm_pm, "PM", "PM")
+        self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.add_monitor(
             Monitor(self.network.layers["PM"], ["s"]),
