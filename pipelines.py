@@ -10,6 +10,7 @@ pipelines.py
 
 import torch
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from bindsnet.pipeline.environment_pipeline import EnvironmentPipeline
 
@@ -196,6 +197,8 @@ class AgentPipeline(EnvironmentPipeline):
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
                          reward=reward, **kwargs)
 
+        self.log_info(kwargs["path"], obs[0, 2], inputs["S2"])
+
         if done:
             if self.network.reward_fn is not None:
                 self.network.reward_fn.update(
@@ -206,6 +209,28 @@ class AgentPipeline(EnvironmentPipeline):
 
             # Update reward list for plotting purposes.
             self.reward_list.append(self.accumulated_reward)
+
+    def log_info(self, path, obs, encoded_input):
+        ss = encoded_input.squeeze().nonzero().to("cpu")
+        plt.scatter(ss[:, 0], ss[:, 1])
+        plt.xlim([-1, self.time + 1])
+        plt.ylim([-1, encoded_input.shape[-1]])
+        plt.savefig(path + f"/{self.episode}_{self.step_count}_{obs}_{self.action}.png")
+        plt.clf()
+        v = self.network.monitors["PM"].get("v").squeeze().to("cpu")
+        plt.plot(v[:, 0], c='r', label="0")
+        plt.plot(v[:, 1], c='b', label="1")
+        plt.ylim([self.network.layers["PM"].rest.to("cpu"),
+                    self.network.layers["PM"].thresh.to("cpu")])
+        plt.legend()
+        plt.savefig(path + f"/v_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
+        plt.clf()
+        s = self.network.monitors["PM"].get("s").squeeze().nonzero().to("cpu")
+        plt.scatter(s[:, 0], s[:, 1])
+        plt.xlim([-1, self.time + 1])
+        plt.ylim([-1, 2])
+        plt.savefig(path + f"/s_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
+        plt.clf()
 
     def train_by_observation(self, **kwargs) -> None:
         """

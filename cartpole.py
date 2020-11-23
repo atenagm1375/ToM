@@ -84,9 +84,9 @@ def population_coding(
     """
     sigma = (high - low) / (2 * n_neurons)
     means = torch.linspace(low, high, n_neurons)
-    spike_times = time - tuning_curve(value, time, means, sigma)
+    spike_times = tuning_curve(value, time - 1, means, sigma)
     spikes = (np.array(spike_times[:, None].to('cpu')).astype(int) ==
-              range(time)).astype(int)
+              range(1, time+1)).astype(int)
     return torch.from_numpy(spikes.T)
 
 
@@ -116,7 +116,7 @@ def cartpole_observation_encoder(
         The encoded data.
 
     """
-    n_neurons = 20
+    n_neurons = 11
     device = "cpu" if datum.get_device() < 0 else 'cuda'
     datum = datum[0]
     # cart_position = population_coding(datum[0], time,
@@ -157,7 +157,7 @@ observer.network.add_monitor(
     Monitor(observer.network.layers["S2"], ["s"]), "S2"
 )
 observer.network.add_monitor(
-    Monitor(observer.network.layers["PM"], ["s"]), "PM"
+    Monitor(observer.network.layers["PM"], ["s", "v"]), "PM"
 )
 observer.network.add_monitor(
     Monitor(observer.network.connections[("S2", "PM")], ["w"]), "S2-PM"
@@ -169,7 +169,7 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
-    representation_time=6,
+    # representation_time=6,
     # plot_interval=1,
     # render_interval=1
 )
@@ -178,16 +178,16 @@ w = pipeline.network.connections[("S2", "PM")].w
 # plot_weights(w)
 print(w)
 
-pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
-print("Observation Finished")
+# pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
+# print("Observation Finished")
+#
+# w = pipeline.network.connections[("S2", "PM")].w
+# # plot_weights(w)
+# print(w)
 
-w = pipeline.network.connections[("S2", "PM")].w
-# plot_weights(w)
-print(w)
+# for i in range(100):
+pipeline.test(path="..")
 
-for i in range(100):
-    pipeline.test()
-
-test_rewards = pipeline.reward_list[-100:]
-print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
-       np.mean(test_rewards))
+# test_rewards = pipeline.reward_list[-100:]
+# print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
+#        np.mean(test_rewards))
