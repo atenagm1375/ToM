@@ -116,30 +116,30 @@ def cartpole_observation_encoder(
         The encoded data.
 
     """
-    n_neurons = 11
+    n_neurons = 20
     device = "cpu" if datum.get_device() < 0 else 'cuda'
     datum = datum[0]
-    # cart_position = population_coding(datum[0], time,
-    #                                   n_neurons,
-    #                                   low=-4.8, high=4.8)
+    cart_position = population_coding(datum[0], time,
+                                      n_neurons,
+                                      low=-4.8, high=4.8)
     # cart_velocity = population_coding(datum[1], time,
     #                                   n_neurons,
     #                                   low=-10, high=10)
     pole_angle = population_coding(datum[2], time,
                                    n_neurons,
-                                   low=-0.418, high=0.418).unsqueeze(1)
+                                   low=-0.418, high=0.418)
     # pole_agular_velocity = population_coding(datum[3], time,
     #                                          n_neurons,
     #                                          low=-10, high=10)
     #
-    # encoded_datum = torch.stack([cart_position,
-    #                              cart_velocity,
-    #                              pole_angle,
-    #                              pole_agular_velocity
-    #                              ], dim=1)
-    #
-    # return encoded_datum.unsqueeze(1).to(device)
-    return pole_angle.unsqueeze(1).to(device)
+    encoded_datum = torch.stack([cart_position,
+                                 # cart_velocity,
+                                 pole_angle,
+                                 # pole_agular_velocity
+                                 ], dim=1)
+
+    return encoded_datum.unsqueeze(1).to(device)
+    # return pole_angle.unsqueeze(1).to(device)
 
 
 def noise_policy(episode, num_episodes, **kwargs):
@@ -178,16 +178,16 @@ w = pipeline.network.connections[("S2", "PM")].w
 # plot_weights(w)
 print(w)
 
-# pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt')
-# print("Observation Finished")
+pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt', path='../train')
+print("Observation Finished")
 #
-# w = pipeline.network.connections[("S2", "PM")].w
+w = pipeline.network.connections[("S2", "PM")].w
 # # plot_weights(w)
-# print(w)
+print(w)
 
-# for i in range(100):
-pipeline.test(path="..")
+for i in range(100):
+    pipeline.test(path="../test")
 
-# test_rewards = pipeline.reward_list[-100:]
-# print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
-#        np.mean(test_rewards))
+test_rewards = pipeline.reward_list[-100:]
+print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
+       np.mean(test_rewards))

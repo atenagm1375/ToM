@@ -117,7 +117,7 @@ class ObserverAgent(Agent):
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
         # TODO Consider network structure
-        s2 = Input(shape=[1, 11], traces=True,
+        s2 = Input(shape=[2, 20], traces=True,
                    traces_additive=True,
                    tc_trace=1.0,
                    trace_scale=0.0
@@ -126,11 +126,11 @@ class ObserverAgent(Agent):
                                traces_additive=True,
                                tc_trace=1.0,
                                trace_scale=0.0,
-                               thresh=-63.9,
+                               thresh=-63.2,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=5,
-                               tc_decay=6.0,
+                               tc_decay=8.0,
                                theta_plus=0.0,
                                tc_theta_decay=1e6,
                                one_spike=True
@@ -139,31 +139,20 @@ class ObserverAgent(Agent):
         w_means = torch.cat([0.5 * torch.ones(5, 2),
                          torch.zeros(10, 2)+0.05,
                          0.5 * torch.ones(5, 2)], dim=0)
-        w = torch.Tensor([[1., 0.],
-                          [1., 0.],
-                          [1., 0.],
-                          [1., 0.],
-                          [1., 0.],
-                          [1., 1.],
-                          [0., 1.],
-                          [0., 1.],
-                          [0., 1.],
-                          [0., 1.],
-                          [0., 1.]])
 
         s2_pm = Connection(s2, pm,
-                           nu=0.06,
+                           nu=0.05,
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
-                           w=w,
+                           # w=w,
                            # w=torch.normal(w_means,
                            #   0.001 * torch.ones(20, 2)),
                            # norm=0.2 * s2.n,
                            tc_plus=10.,
                            tc_minus=10.,
-                           tc_e_trace=60.,
-                           # weight_decay=1e-7,
+                           tc_e_trace=90.,
+                           weight_decay=1e-7,
                            )
         pm_pm = Connection(pm, pm,
                            w=-0.005 * torch.ones(pm.n)
@@ -173,7 +162,7 @@ class ObserverAgent(Agent):
         self.network.add_layer(pm, "PM")
 
         self.network.add_connection(s2_pm, "S2", "PM")
-        # self.network.add_connection(pm_pm, "PM", "PM")
+        self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.add_monitor(
             Monitor(self.network.layers["PM"], ["s"]),
@@ -212,7 +201,7 @@ class ObserverAgent(Agent):
         if self.method == 'softmax':
             spikes = torch.sum(spikes, dim=0).squeeze(0)
             spikes = torch.sum(spikes, dim=1)
-            print(spikes)
+            # print(spikes)
             most_fired = torch.argmax(spikes)
             return most_fired
 

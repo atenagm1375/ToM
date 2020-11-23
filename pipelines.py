@@ -197,7 +197,7 @@ class AgentPipeline(EnvironmentPipeline):
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
                          reward=reward, **kwargs)
 
-        self.log_info(kwargs["path"], obs[0, 2], inputs["S2"])
+        # self.log_info(kwargs["path"], obs[0, 2], inputs["S2"])
 
         if done:
             if self.network.reward_fn is not None:
