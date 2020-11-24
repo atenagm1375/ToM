@@ -20,7 +20,7 @@ from bindsnet.learning.reward import MovingAvgRPE
 from bindsnet.network.monitors import Monitor
 from bindsnet.analysis.plotting import plot_weights
 
-from agents import ObserverAgent, ExpertAgent
+from agents import CartPoleObserverAgent, ExpertAgent
 from pipelines import AgentPipeline
 
 
@@ -149,19 +149,10 @@ def noise_policy(episode, num_episodes, **kwargs):
 environment = GymEnvironment('CartPole-v0')
 environment.reset()
 
-observer = ObserverAgent(environment, dt=1.0, method='softmax')
+observer = CartPoleObserverAgent(environment, dt=1.0, method='softmax')
+
 expert = ExpertAgent(environment, method='from_weight',
                      noise_policy=noise_policy)
-
-observer.network.add_monitor(
-    Monitor(observer.network.layers["S2"], ["s"]), "S2"
-)
-observer.network.add_monitor(
-    Monitor(observer.network.layers["PM"], ["s", "v"]), "PM"
-)
-observer.network.add_monitor(
-    Monitor(observer.network.connections[("S2", "PM")], ["w"]), "S2-PM"
-)
 
 pipeline = AgentPipeline(
     observer_agent=observer,

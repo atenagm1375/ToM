@@ -60,6 +60,9 @@ class AgentPipeline(EnvironmentPipeline):
         assert (observer_agent.device == expert_agent.device), \
             "Observer and Expert objects must be on same device."
 
+        self.observer_agent = observer_agent
+        self.observer_agent.build_network()
+
         super().__init__(
             observer_agent.network,
             observer_agent.environment,
@@ -67,7 +70,7 @@ class AgentPipeline(EnvironmentPipeline):
             allow_gpu=observer_agent.allow_gpu,
             **kwargs,
         )
-        self.observer_agent = observer_agent
+
         self.expert_agent = expert_agent
 
         self.representation_time = kwargs.get('representation_time', -1)
@@ -172,8 +175,9 @@ class AgentPipeline(EnvironmentPipeline):
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
                          reward=reward, **kwargs)
 
-        if kwargs.get("path") is not None:
-            self.log_info(kwargs["path"], obs[0, 2], inputs["S2"])
+        if kwargs.get("log_path") is not None:
+            for k in inputs.keys():
+                self._log_info(kwargs["log_path"], obs[0, 2], inputs[k])
 
         if done:
             if self.network.reward_fn is not None:
@@ -186,7 +190,7 @@ class AgentPipeline(EnvironmentPipeline):
             # Update reward list for plotting purposes.
             self.reward_list.append(self.accumulated_reward)
 
-    def log_info(self, path, obs, encoded_input):
+    def _log_info(self, path, obs, encoded_input):
         ss = encoded_input.squeeze().nonzero().to("cpu")
         plt.scatter(ss[:, 0], ss[:, 1])
         plt.xlim([-1, self.time + 1])
