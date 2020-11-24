@@ -141,8 +141,8 @@ class ObserverAgent(Agent):
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
-                           tc_plus=10.,
-                           tc_minus=10.,
+                           tc_plus=20.,
+                           tc_minus=20.,
                            tc_e_trace=90.,
                            weight_decay=1e-7,
                            )
