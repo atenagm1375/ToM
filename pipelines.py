@@ -76,6 +76,8 @@ class AgentPipeline(EnvironmentPipeline):
             "data_step": True,
         }
 
+        self.test_rewards = []
+
     def env_step(self, **kwargs) -> tuple:
         """
         Perform single step of the environment.
@@ -217,10 +219,13 @@ class AgentPipeline(EnvironmentPipeline):
         """
         self.observer_agent.network.train(True)
 
-        # Expert acts in the environment.
-        self.action_function = self.expert_agent.select_action
+        test_interval = kwargs.get("test_interval", None)
+        num_tests = kwargs.get("num_tests", 1)
 
         while self.episode < self.num_episodes:
+            # Expert acts in the environment.
+            self.action_function = self.expert_agent.select_action
+
             self.reset_state_variables()
 
             prev_obs, prev_reward, prev_done, info = self.env_step(**kwargs)
@@ -242,6 +247,12 @@ class AgentPipeline(EnvironmentPipeline):
                 f"Episode: {self.episode} - "
                 f"accumulated reward: {self.accumulated_reward:.2f}"
             )
+
+            if test_interval is not None:
+                if (self.episode + 1) % test_interval == 0:
+                    for _ in range(num_tests):
+                        self.test()
+
             self.episode += 1
 
     def train_by_observation_action(
@@ -341,6 +352,7 @@ class AgentPipeline(EnvironmentPipeline):
 
             self.step((obs, reward, done, info), **kwargs)
 
+        self.test_rewards.append(self.reward_list.pop())
         print("Test - accumulated reward:", self.accumulated_reward)
 
     def env_reset(self) -> None:
