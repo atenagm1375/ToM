@@ -136,19 +136,11 @@ class ObserverAgent(Agent):
                                one_spike=True
                                )
 
-        w_means = torch.cat([0.5 * torch.ones(5, 2),
-                         torch.zeros(10, 2)+0.05,
-                         0.5 * torch.ones(5, 2)], dim=0)
-
         s2_pm = Connection(s2, pm,
                            nu=0.05,
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
-                           # w=w,
-                           # w=torch.normal(w_means,
-                           #   0.001 * torch.ones(20, 2)),
-                           # norm=0.2 * s2.n,
                            tc_plus=10.,
                            tc_minus=10.,
                            tc_e_trace=90.,
@@ -201,7 +193,6 @@ class ObserverAgent(Agent):
         if self.method == 'softmax':
             spikes = torch.sum(spikes, dim=0).squeeze(0)
             spikes = torch.sum(spikes, dim=1)
-            # print(spikes)
             most_fired = torch.argmax(spikes)
             return most_fired
 

@@ -74,9 +74,6 @@ class AgentPipeline(EnvironmentPipeline):
 
         self.plot_config = {
             "data_step": True,
-            # "obs_step": True,
-            # "reward_eps": 1,
-            "data_length": 200,
         }
 
     def env_step(self, **kwargs) -> tuple:
@@ -110,29 +107,9 @@ class AgentPipeline(EnvironmentPipeline):
 
         # Choose action based on output neuron spiking.
         if self.action_function is not None:
-            # self.last_action = self.action
-            # if torch.rand(1) < self.percent_of_random_action:
-            #     self.action = torch.randint(
-            #         low=0, high=self.env.action_space.n, size=(1,)
-            #     )[0]
-            # elif self.action_counter > self.random_action_after:
-            #     if self.last_action == 0:  # last action was start b
-            #         self.action = 1  # next action will be fire b
-            #         tqdm.write(f"Fire -> too many times {self.last_action} ")
-            #     else:
-            #         self.action = torch.randint(
-            #             low=0, high=self.env.action_space.n, size=(1,)
-            #         )[0]
-            #         tqdm.write(f"too many times {self.last_action} ")
-            # else:
             self.action = self.action_function(episode=self.episode,
                                                num_episodes=self.num_episodes,
                                                **kwargs)
-
-            # if self.last_action == self.action:
-            #     self.action_counter += 1
-            # else:
-            #     self.action_counter = 0
 
         # Run a step of the environment.
         if not isinstance(self.action, int):
@@ -175,17 +152,13 @@ class AgentPipeline(EnvironmentPipeline):
             k: self.encoding(obs, self.time, **kwargs)
             for k in self.inputs if k != "PFC"
         }
-        # inputs["PFC"] = torch.poisson(torch.rand(self.time,
-        #                                          self.network.layers["PFC"].n)
-        #                               ).byte().to(self.device)
+
         pm_n = self.network.layers["PM"].n
         n_action = self.env.action_space.n
         pm_v = torch.zeros(self.time, pm_n)
         pm_v[self.representation_time, pm_n//n_action * self.action: \
                                     pm_n//n_action * (self.action + 1)] = 1
-        # injects_v = {
-        #     "PM": pm_v.view(self.time, self.env.action_space.n, -1).to(self.device)
-        # }
+
         pm_v = pm_v.view(self.time, n_action, -1).byte()
         clamp = {
             "PM": pm_v.to(self.device)
@@ -197,7 +170,8 @@ class AgentPipeline(EnvironmentPipeline):
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
                          reward=reward, **kwargs)
 
-        # self.log_info(kwargs["path"], obs[0, 2], inputs["S2"])
+        if kwargs.get("path") is not None:
+            self.log_info(kwargs["path"], obs[0, 2], inputs["S2"])
 
         if done:
             if self.network.reward_fn is not None:
@@ -295,6 +269,7 @@ class AgentPipeline(EnvironmentPipeline):
         None
 
         """
+        # TODO reconsider
         self.observer_agent.network.train(True)
 
         while self.episode < self.num_episodes:

@@ -169,7 +169,6 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
-    # representation_time=6,
     # plot_interval=1,
     # render_interval=1
 )
@@ -182,7 +181,7 @@ pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt', path='../
 print("Observation Finished")
 #
 w = pipeline.network.connections[("S2", "PM")].w
-# # plot_weights(w)
+# plot_weights(w)
 print(w)
 
 for i in range(100):
