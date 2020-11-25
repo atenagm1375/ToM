@@ -16,7 +16,7 @@ import torch
 import numpy as np
 
 from bindsnet.environment import GymEnvironment
-from bindsnet.learning.reward import MovingAvgRPE
+from bindsnet.learning.reward import AbstractReward
 from bindsnet.network.monitors import Monitor
 from bindsnet.analysis.plotting import plot_weights
 
@@ -51,15 +51,14 @@ def tuning_curve(
 
     """
     device = 'cpu' if value.get_device() < 0 else 'cuda'
-    return amp * torch.exp(-(1 / 2) * ((value - means.to(device)) / sigma) ** 2)
+    return amp * torch.exp(-(1 / 2) * ((value - means.to(device)) / sigma.to(device)) ** 2)
 
 
 def population_coding(
         value: float,
         time: int,
-        n_neurons: int,
-        low: float,
-        high: float) -> torch.Tensor:
+        means: torch.Tensor,
+        sigma: torch.Tensor) -> torch.Tensor:
     """
     Apply population coding to the value.
 
@@ -82,8 +81,6 @@ def population_coding(
         The population coded tensor.
 
     """
-    sigma = (high - low) / (2 * n_neurons)
-    means = torch.linspace(low, high, n_neurons)
     spike_times = tuning_curve(value, time - 1, means, sigma)
     spikes = (np.array(spike_times[:, None].to('cpu')).astype(int) ==
               range(1, time+1)).astype(int)
@@ -116,40 +113,67 @@ def cartpole_observation_encoder(
         The encoded data.
 
     """
-    n_neurons = 30
+    n_neurons = 21
     device = "cpu" if datum.get_device() < 0 else 'cuda'
-    datum = datum[0]
+    datum = datum.squeeze()
     # cart_position = population_coding(datum[0], time,
     #                                   n_neurons,
     #                                   low=-4.8, high=4.8)
     # cart_velocity = population_coding(datum[1], time,
     #                                   n_neurons,
     #                                   low=-10, high=10)
+    low, high = -0.418, 0.418
+    sigma = ((high - low) / n_neurons) * torch.ones(n_neurons)
+    means = torch.linspace(low, high, n_neurons)
     pole_angle = population_coding(datum[2], time,
-                                   n_neurons,
-                                   low=-0.418, high=0.418).unsqueeze(1)
-    # pole_agular_velocity = population_coding(datum[3], time,
-    #                                          n_neurons,
-    #                                          low=-10, high=10)
-    #
-    # encoded_datum = torch.stack([cart_position,
+                                   means, sigma).unsqueeze(1)
+
+    low, high = -2, 2
+    sigma = ((high - low) / (2 * n_neurons)) * torch.ones(n_neurons)
+    sigma[:n_neurons * 3 // 8] *= 2
+    sigma[n_neurons * 5 // 8:] *= 2
+    means = torch.linspace(low, high, n_neurons)
+    pole_agular_velocity = population_coding(datum[3], time,
+                                             means, sigma).unsqueeze(1)
+
+    # encoded_datum = torch.stack([
+    #                              # cart_position,
     #                              # cart_velocity,
     #                              pole_angle,
-    #                              # pole_agular_velocity
+    #                              pole_agular_velocity
     #                              ], dim=1)
     #
     # return encoded_datum.unsqueeze(1).to(device)
-    return pole_angle.unsqueeze(1).to(device)
+    return {"S2": pole_angle.unsqueeze(1).to(device),
+            "MT": pole_agular_velocity.unsqueeze(1).to(device)}
 
 
 def noise_policy(episode, num_episodes, **kwargs):
     return np.exp(-4 * episode/num_episodes)
 
 
+class CartPoleReward(AbstractReward):
+    def __init__(self, **kwargs):
+        pass
+
+    def compute(self, **kwargs):
+        reward = kwargs["reward"]
+        last_state = kwargs["last_state"]
+        curr_state = kwargs["curr_state"]
+
+        if reward > 0 and torch.abs(curr_state[2]) <= torch.abs(last_state[2]):
+            return 1
+        return -1
+
+    def update(self, **kwargs):
+        pass
+
+
 environment = GymEnvironment('CartPole-v0')
 environment.reset()
 
-observer = CartPoleObserverAgent(environment, dt=1.0, method='softmax')
+observer = CartPoleObserverAgent(environment, dt=1.0, method='softmax',
+                                 reward_fn=CartPoleReward)
 
 expert = ExpertAgent(environment, method='from_weight',
                      noise_policy=noise_policy)
@@ -164,17 +188,25 @@ pipeline = AgentPipeline(
     # render_interval=1
 )
 
-w = pipeline.network.connections[("S2", "PM")].w
-# plot_weights(w)
-print(w)
+w1 = pipeline.network.connections[("S2", "PM")].w
+# plot_weights(w1)
+print(w1)
+
+w2 = pipeline.network.connections[("MT", "PM")].w
+# plot_weights(w2)
+print(w2)
 
 pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt',
                               test_interval=10, num_tests=5)
 print("Observation Finished")
 #
-w = pipeline.network.connections[("S2", "PM")].w
-# plot_weights(w)
-print(w)
+w1 = pipeline.network.connections[("S2", "PM")].w
+# plot_weights(w1)
+print(w1)
+
+w2 = pipeline.network.connections[("MT", "PM")].w
+# plot_weights(w2)
+print(w2)
 
 for i in range(100):
     pipeline.test()

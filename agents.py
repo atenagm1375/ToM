@@ -194,7 +194,12 @@ class CartPoleObserverAgent(ObserverAgent):
 
     def build_network(self):
         # TODO Consider network structure
-        s2 = Input(shape=[1, 30], traces=True,
+        s2 = Input(shape=[1, 21], traces=True,
+                   traces_additive=True,
+                   tc_trace=1.0,
+                   trace_scale=0.0
+                   )
+        mt = Input(shape=[1, 21], traces=True,
                    traces_additive=True,
                    tc_trace=1.0,
                    trace_scale=0.0
@@ -203,34 +208,51 @@ class CartPoleObserverAgent(ObserverAgent):
                                traces_additive=True,
                                tc_trace=1.0,
                                trace_scale=0.0,
-                               thresh=-63.8,
+                               thresh=-63.75,
                                rest=-65.0,
                                reset=-65.0,
-                               refrac=4,
-                               tc_decay=6.0,
+                               refrac=15,
+                               tc_decay=1.0,
                                theta_plus=0.0,
                                tc_theta_decay=1e6,
                                one_spike=True
                                )
+
+        w1 = torch.normal(torch.zeros(21, 2) + 0.5, 0.001 * torch.ones(21, 2))
+        w2 = torch.normal(torch.zeros(21, 2), 0.001 * torch.ones(21, 2))
 
         s2_pm = Connection(s2, pm,
                            nu=0.05,
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
-                           tc_plus=20.,
-                           tc_minus=20.,
-                           tc_e_trace=90.,
-                           weight_decay=1e-7,
+                           w=w1,
+                           tc_plus=10.,
+                           tc_minus=10.,
+                           tc_e_trace=60.,
+                           weight_decay=1e-8,
+                           )
+        mt_pm = Connection(s2, pm,
+                           nu=0.02,
+                           update_rule=MSTDPET,
+                           wmin=-0.2,
+                           wmax=0.2,
+                           w=w2,
+                           tc_plus=10.,
+                           tc_minus=10.,
+                           tc_e_trace=60.,
+                           # weight_decay=1e-7,
                            )
         pm_pm = Connection(pm, pm,
-                           w=-0.05 * torch.ones(pm.n)
+                           w=-0.1 * torch.ones(pm.n)
                            )
 
         self.network.add_layer(s2, "S2")
+        self.network.add_layer(mt, "MT")
         self.network.add_layer(pm, "PM")
 
         self.network.add_connection(s2_pm, "S2", "PM")
+        self.network.add_connection(mt_pm, "MT", "PM")
         self.network.add_connection(pm_pm, "PM", "PM")
 
         self.network.add_monitor(
@@ -240,7 +262,13 @@ class CartPoleObserverAgent(ObserverAgent):
             Monitor(self.network.layers["S2"], ["s"]), "S2"
         )
         self.network.add_monitor(
+            Monitor(self.network.layers["MT"], ["s"]), "MT"
+        )
+        self.network.add_monitor(
             Monitor(self.network.connections[("S2", "PM")], ["w"]), "S2-PM"
+        )
+        self.network.add_monitor(
+            Monitor(self.network.connections[("MT", "PM")], ["w"]), "MT-PM"
         )
 
         self.network.to(self.device)

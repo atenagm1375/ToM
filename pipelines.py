@@ -153,10 +153,7 @@ class AgentPipeline(EnvironmentPipeline):
         """
         obs, reward, done, info = gym_batch
 
-        inputs = {
-            k: self.encoding(obs, self.time, **kwargs)
-            for k in self.inputs if k != "PFC"
-        }
+        inputs = self.encoding(obs, self.time, **kwargs)
 
         pm_n = self.network.layers["PM"].n
         n_action = self.env.action_space.n
@@ -169,15 +166,11 @@ class AgentPipeline(EnvironmentPipeline):
             "PM": pm_v.to(self.device)
         } if self.network.learning else {}
 
-        # TODO define keyword arguments for reward function
-        reward = reward if reward > 0 else -1
-
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
-                         reward=reward, **kwargs)
+                         reward=reward, curr_state=obs.squeeze(), **kwargs)
 
         if kwargs.get("log_path") is not None:
-            for k in inputs.keys():
-                self._log_info(kwargs["log_path"], obs[0, 2], inputs[k])
+            self._log_info(kwargs["log_path"], obs[0], inputs)
 
         if done:
             if self.network.reward_fn is not None:
@@ -189,28 +182,6 @@ class AgentPipeline(EnvironmentPipeline):
 
             # Update reward list for plotting purposes.
             self.reward_list.append(self.accumulated_reward)
-
-    def _log_info(self, path, obs, encoded_input):
-        ss = encoded_input.squeeze().nonzero().to("cpu")
-        plt.scatter(ss[:, 0], ss[:, 1])
-        plt.xlim([-1, self.time + 1])
-        plt.ylim([-1, encoded_input.shape[-1]])
-        plt.savefig(path + f"/{self.episode}_{self.step_count}_{obs}_{self.action}.png")
-        plt.clf()
-        v = self.network.monitors["PM"].get("v").squeeze().to("cpu")
-        plt.plot(v[:, 0], c='r', label="0")
-        plt.plot(v[:, 1], c='b', label="1")
-        plt.ylim([self.network.layers["PM"].rest.to("cpu"),
-                    self.network.layers["PM"].thresh.to("cpu")])
-        plt.legend()
-        plt.savefig(path + f"/v_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
-        plt.clf()
-        s = self.network.monitors["PM"].get("s").squeeze().nonzero().to("cpu")
-        plt.scatter(s[:, 0], s[:, 1])
-        plt.xlim([-1, self.time + 1])
-        plt.ylim([-1, 2])
-        plt.savefig(path + f"/s_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
-        plt.clf()
 
     def train_by_observation(self, **kwargs) -> None:
         """
@@ -232,10 +203,13 @@ class AgentPipeline(EnvironmentPipeline):
 
             self.reset_state_variables()
 
+            last_state = torch.Tensor(self.env.env.state)
+
             prev_obs, prev_reward, prev_done, info = self.env_step(**kwargs)
 
             new_done = False
             while not prev_done:
+                self.network.reset_state_variables()
                 prev_done = new_done
                 # The result of expert's action.
                 if not prev_done:
@@ -243,7 +217,9 @@ class AgentPipeline(EnvironmentPipeline):
 
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
-                self.step((prev_obs, prev_reward, prev_done, info), **kwargs)
+                self.step((prev_obs, prev_reward, prev_done, info),
+                          last_state=last_state, **kwargs)
+                last_state = prev_obs.squeeze()
                 prev_obs = new_obs
                 prev_reward = new_reward
 
@@ -292,6 +268,7 @@ class AgentPipeline(EnvironmentPipeline):
             self.reset_state_variables()
             done = False
             while not done:
+                self.network.reset_state_variables()
                 obs, reward, done, info = self.env_step(**kwargs)
 
                 self.step((obs, reward, done, info), **kwargs)
@@ -307,6 +284,7 @@ class AgentPipeline(EnvironmentPipeline):
                     self.env_reset()
                     done = False
                     while not done:
+                        self.network.reset_state_variables()
                         obs, reward, done, info = self.env_step(**kwargs)
 
                         self.step((obs, reward, done, info), **kwargs)
@@ -343,13 +321,12 @@ class AgentPipeline(EnvironmentPipeline):
 
         self.reset_state_variables()
 
-        self.action_function = None
-        self.action = self.env.action_space.sample()
-        obs, reward, done, info = self.env_step(**kwargs)
-        self.step((obs, reward, done, info), **kwargs)
-
         self.action_function = self.observer_agent.select_action
-
+        obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
+        self.step((obs, 1.0, False, {}), **kwargs)
+        # obs, reward, done, info = self.env_step(**kwargs)
+        # self.step((obs, reward, done, info), **kwargs)
+        done = False
         while not done:
             # The result of observer's action.
             obs, reward, done, info = self.env_step(**kwargs)
@@ -367,3 +344,37 @@ class AgentPipeline(EnvironmentPipeline):
         self.action = torch.tensor(-1)
         self.last_action = torch.tensor(-1)
         self.action_counter = 0
+
+    def _log_info(self, path, obs, encoded_input):
+        for k in encoded_input.keys():
+            ss = encoded_input[k].squeeze().to("cpu")
+            if len(ss.shape) == 2:
+                ss = ss.nonzero()
+                plt.scatter(ss[:, 0], ss[:, 1])
+                plt.xlim([-1, self.time + 1])
+                plt.ylim([-1, encoded_input[k].shape[-1]])
+                plt.savefig(path + f"/{k}_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
+                plt.clf()
+            else:
+                for i in range(ss.shape[1]):
+                    s = ss[:, i, :].nonzero()
+                    plt.scatter(s[:, 0], s[:, 1])
+                    plt.xlim([-1, self.time + 1])
+                    plt.ylim([-1, ss.shape[-1]])
+                    plt.savefig(path + f"/{k}_n{i}_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
+                    plt.clf()
+
+        v = self.network.monitors["PM"].get("v").squeeze().to("cpu")
+        plt.plot(v[:, 0], c='r', label="0")
+        plt.plot(v[:, 1], c='b', label="1")
+        plt.ylim([self.network.layers["PM"].rest.to("cpu"),
+                    self.network.layers["PM"].thresh.to("cpu")])
+        plt.legend()
+        plt.savefig(path + f"/v_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
+        plt.clf()
+        s = self.network.monitors["PM"].get("s").squeeze().nonzero().to("cpu")
+        plt.scatter(s[:, 0], s[:, 1])
+        plt.xlim([-1, self.time + 1])
+        plt.ylim([-1, 2])
+        plt.savefig(path + f"/s_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
+        plt.clf()
