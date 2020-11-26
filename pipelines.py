@@ -169,8 +169,8 @@ class AgentPipeline(EnvironmentPipeline):
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
                          reward=reward, curr_state=obs.squeeze(), **kwargs)
 
-        if kwargs.get("log_path") is not None:
-            self._log_info(kwargs["log_path"], obs[0], inputs)
+        if kwargs.get("log_path") is not None and not self.observer_agent.network.learning:
+            self._log_info(kwargs["log_path"], obs.squeeze(), inputs)
 
         if done:
             if self.network.reward_fn is not None:
@@ -200,7 +200,6 @@ class AgentPipeline(EnvironmentPipeline):
         while self.episode < self.num_episodes:
             # Expert acts in the environment.
             self.action_function = self.expert_agent.select_action
-
             self.reset_state_variables()
 
             last_state = torch.Tensor(self.env.env.state)
@@ -231,7 +230,7 @@ class AgentPipeline(EnvironmentPipeline):
             if test_interval is not None:
                 if (self.episode + 1) % test_interval == 0:
                     for _ in range(num_tests):
-                        self.test()
+                        self.test(**kwargs)
 
             self.episode += 1
 
@@ -346,35 +345,34 @@ class AgentPipeline(EnvironmentPipeline):
         self.action_counter = 0
 
     def _log_info(self, path, obs, encoded_input):
-        for k in encoded_input.keys():
+        # TODO change it later for inputs of shape n*m
+        plt.ioff()
+        fig, axes = plt.subplots(len(encoded_input.keys()), 2)
+        for idx, k in enumerate(encoded_input.keys()):
             ss = encoded_input[k].squeeze().to("cpu")
             if len(ss.shape) == 2:
                 ss = ss.nonzero()
-                plt.scatter(ss[:, 0], ss[:, 1])
-                plt.xlim([-1, self.time + 1])
-                plt.ylim([-1, encoded_input[k].shape[-1]])
-                plt.savefig(path + f"/{k}_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
-                plt.clf()
+                axes[idx, 0].scatter(ss[:, 0], ss[:, 1])
+                axes[idx, 0].set(xlim=[-1, self.time + 1],
+                                 ylim=[-1, encoded_input[k].shape[-1]])
+                axes[idx, 0].set_title(k)
             else:
                 for i in range(ss.shape[1]):
                     s = ss[:, i, :].nonzero()
-                    plt.scatter(s[:, 0], s[:, 1])
+                    axes[idx * i, 0].scatter(s[:, 0], s[:, 1])
                     plt.xlim([-1, self.time + 1])
                     plt.ylim([-1, ss.shape[-1]])
-                    plt.savefig(path + f"/{k}_n{i}_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
-                    plt.clf()
 
         v = self.network.monitors["PM"].get("v").squeeze().to("cpu")
-        plt.plot(v[:, 0], c='r', label="0")
-        plt.plot(v[:, 1], c='b', label="1")
-        plt.ylim([self.network.layers["PM"].rest.to("cpu"),
-                    self.network.layers["PM"].thresh.to("cpu")])
-        plt.legend()
-        plt.savefig(path + f"/v_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
-        plt.clf()
+        axes[0, 1].plot(v[:, 0], c='r', label="0")
+        axes[0, 1].plot(v[:, 1], c='b', label="1")
+        axes[0, 1].set(ylim=[self.network.layers["PM"].rest.to("cpu"),
+                       self.network.layers["PM"].thresh.to("cpu")])
+        axes[0, 1].legend()
+
         s = self.network.monitors["PM"].get("s").squeeze().nonzero().to("cpu")
-        plt.scatter(s[:, 0], s[:, 1])
-        plt.xlim([-1, self.time + 1])
-        plt.ylim([-1, 2])
-        plt.savefig(path + f"/s_{self.episode}_{self.step_count}_{obs}_{self.action}.png")
-        plt.clf()
+        axes[1, 1].scatter(s[:, 0], s[:, 1])
+        axes[1, 1].set(xlim=[-1, self.time + 1], ylim=[-1, 2])
+        fig.savefig(path + f"/{self.episode}_{len(self.test_rewards)}_"
+                    f"{self.step_count}_{obs}_{self.action}.png")
+        fig.clf()
