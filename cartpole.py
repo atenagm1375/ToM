@@ -14,6 +14,7 @@ sys.path.append('../bindsnet/')
 
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 
 from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import AbstractReward
@@ -161,8 +162,13 @@ class CartPoleReward(AbstractReward):
         last_state = kwargs["last_state"]
         curr_state = kwargs["curr_state"]
 
-        if reward > 0 and torch.abs(curr_state[2]) <= torch.abs(last_state[2]):
-            return 1
+        if reward > 0:
+            if torch.abs(curr_state[2]) <= torch.abs(last_state[2]):
+                return 1
+            elif torch.allclose(curr_state[2], last_state[2], 1e-4, 1e-5):
+                return 0.5
+            else:
+                return -0.5
         return -1
 
     def update(self, **kwargs):
@@ -208,9 +214,12 @@ w2 = pipeline.network.connections[("MT", "PM")].w
 # plot_weights(w2)
 print(w2)
 
-for i in range(100):
-    pipeline.test()
+# for i in range(100):
+#     pipeline.test()
 
-test_rewards = pipeline.test_rewards[-100:]
-print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
-       np.mean(test_rewards))
+# test_rewards = pipeline.test_rewards[-100:]
+# print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
+#        np.mean(test_rewards))
+plt.ioff()
+plt.plot(pipeline.test_rewards)
+plt.show()
