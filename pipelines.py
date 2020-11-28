@@ -198,6 +198,7 @@ class AgentPipeline(EnvironmentPipeline):
         num_tests = kwargs.get("num_tests", 1)
 
         while self.episode < self.num_episodes:
+            self.observer_agent.network.train(True)
             # Expert acts in the environment.
             self.action_function = self.expert_agent.select_action
             self.reset_state_variables()
@@ -330,6 +331,7 @@ class AgentPipeline(EnvironmentPipeline):
             # The result of observer's action.
             obs, reward, done, info = self.env_step(**kwargs)
 
+            self.network.reset_state_variables()
             self.step((obs, reward, done, info), **kwargs)
 
         self.test_rewards.append(self.reward_list.pop())

@@ -208,7 +208,7 @@ class CartPoleObserverAgent(ObserverAgent):
                                traces_additive=True,
                                tc_trace=1.0,
                                trace_scale=0.0,
-                               thresh=-64.5,
+                               thresh=-64.,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=20,
@@ -218,33 +218,33 @@ class CartPoleObserverAgent(ObserverAgent):
                                one_spike=True
                                )
 
-        w1 = torch.normal(torch.zeros(21, 2), 0.01 * torch.ones(21, 2))
-        w2 = torch.normal(torch.zeros(21, 2), 0.01 * torch.ones(21, 2))
+        w1 = torch.normal(torch.zeros(s2.n, pm.n) + 0.5, 0.01 * torch.ones(s2.n, pm.n))
+        w2 = torch.normal(torch.zeros(mt.n, pm.n), 0.001 * torch.ones(mt.n, pm.n))
 
         s2_pm = Connection(s2, pm,
-                           nu=0.5,
+                           nu=0.2,
                            update_rule=MSTDPET,
                            wmin=0.0,
                            wmax=1.0,
                            w=w1,
                            tc_plus=10.,
                            tc_minus=10.,
-                           tc_e_trace=60.,
-                           # weight_decay=1e-8,
+                           tc_e_trace=180.,
+                           # weight_decay=1e-6,
                            )
         mt_pm = Connection(s2, pm,
-                           nu=0.5,
+                           nu=0.2,
                            update_rule=MSTDPET,
-                           wmin=-0.25,
-                           wmax=0.25,
+                           wmin=-1.,
+                           wmax=1.,
                            w=w2,
                            tc_plus=10.,
                            tc_minus=10.,
-                           tc_e_trace=60.,
-                           # weight_decay=1e-8,
+                           tc_e_trace=180.,
+                           # weight_decay=1e-6,
                            )
         pm_pm = Connection(pm, pm,
-                           w=-0.1 * torch.ones(pm.n)
+                           w=-0.1 * (torch.ones(pm.n) - torch.eye(pm.n))
                            )
 
         self.network.add_layer(s2, "S2")

@@ -150,7 +150,8 @@ def cartpole_observation_encoder(
 
 
 def noise_policy(episode, num_episodes, **kwargs):
-    return np.exp(-4 * episode/num_episodes)
+    return (1 - episode / num_episodes) ** 2
+    # return np.exp(-4 * episode/num_episodes)
 
 
 class CartPoleReward(AbstractReward):
@@ -159,17 +160,18 @@ class CartPoleReward(AbstractReward):
 
     def compute(self, **kwargs):
         reward = kwargs["reward"]
-        last_state = kwargs["last_state"]
-        curr_state = kwargs["curr_state"]
-
-        if reward > 0:
-            if torch.abs(curr_state[2]) <= torch.abs(last_state[2]):
-                return 1
-            elif torch.allclose(curr_state[2], last_state[2], 1e-4, 1e-5):
-                return 0.5
-            else:
-                return -0.5
-        return -1
+        # last_state = kwargs["last_state"]
+        # curr_state = kwargs["curr_state"]
+        #
+        # if reward > 0:
+        #     if torch.abs(curr_state[2]) <= torch.abs(last_state[2]):
+        #         return 1
+        #     elif torch.allclose(curr_state[2], last_state[2], 1e-4, 1e-5):
+        #         return 0.5
+        #     else:
+        #         return -0.5
+        # return -1
+        return reward if reward > 0 else -1
 
     def update(self, **kwargs):
         pass
@@ -220,6 +222,6 @@ print(w2)
 # test_rewards = pipeline.test_rewards[-100:]
 # print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
 #        np.mean(test_rewards))
-plt.ioff()
-plt.plot(pipeline.test_rewards)
-plt.show()
+# plt.ioff()
+# plt.plot(pipeline.test_rewards)
+# plt.show()
