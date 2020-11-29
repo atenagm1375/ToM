@@ -75,12 +75,15 @@ class AgentPipeline(EnvironmentPipeline):
 
         self.representation_time = kwargs.get('representation_time', -1)
 
+        self.log_writer = kwargs.get('log_writer', False)
+
         self.plot_config = {
             "data_step": True,
         }
 
         self.test_rewards = []
-        self.time_recorder = 0
+        if self.log_writer:
+            self.time_recorder = 0
 
     def env_step(self, **kwargs) -> tuple:
         """
@@ -220,8 +223,8 @@ class AgentPipeline(EnvironmentPipeline):
                 # it modified the environment.
                 self.step((prev_obs, prev_reward, prev_done, info),
                           last_state=last_state, **kwargs)
-
-                self._save_simulation_info(**kwargs)
+                if self.log_writer:
+                    self._save_simulation_info(**kwargs)
 
                 last_state = prev_obs.squeeze()
                 prev_obs = new_obs
@@ -330,7 +333,8 @@ class AgentPipeline(EnvironmentPipeline):
         obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
         self.step((obs, 1.0, False, {}), **kwargs)
 
-        self._save_simulation_info(**kwargs)
+        if self.log_writer:
+            self._save_simulation_info(**kwargs)
 
         # obs, reward, done, info = self.env_step(**kwargs)
         # self.step((obs, reward, done, info), **kwargs)
@@ -342,7 +346,8 @@ class AgentPipeline(EnvironmentPipeline):
             self.network.reset_state_variables()
             self.step((obs, reward, done, info), **kwargs)
 
-            self._save_simulation_info(**kwargs)
+            if self.log_writer:
+                self._save_simulation_info(**kwargs)
 
         self.test_rewards.append(self.reward_list.pop())
         print("Test - accumulated reward:", self.accumulated_reward)
@@ -395,6 +400,7 @@ class AgentPipeline(EnvironmentPipeline):
                                  ylim=[-1, encoded_input[k].shape[-1]])
                 axes[idx, 0].set_title(k)
             else:
+                # TODO reconsider
                 for i in range(ss.shape[1]):
                     s = ss[:, i, :].nonzero()
                     axes[idx * i, 0].scatter(s[:, 0], s[:, 1])

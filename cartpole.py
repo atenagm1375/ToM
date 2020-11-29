@@ -192,6 +192,7 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
+    log_writer=True,
     # plot_interval=1,
     # render_interval=1
 )
