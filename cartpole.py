@@ -17,7 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from bindsnet.environment import GymEnvironment
-from bindsnet.learning.reward import AbstractReward
+from bindsnet.learning.reward import AbstractReward, MovingAvgRPE
 from bindsnet.network.monitors import Monitor
 from bindsnet.analysis.plotting import plot_weights
 
@@ -84,7 +84,7 @@ def noise_policy(episode, num_episodes, **kwargs):
 
 class CartPoleReward(AbstractReward):
     def __init__(self, **kwargs):
-        self.reduction = 1e6
+        self.alpha = 1.0
 
     def compute(self, **kwargs):
         reward = kwargs["reward"]
@@ -99,10 +99,14 @@ class CartPoleReward(AbstractReward):
         #     else:
         #         return -0.5
         # return -1
-        return reward if reward > 0 else -1
+        return reward * self.alpha if reward > 0 else -self.alpha
 
     def update(self, **kwargs):
-        pass
+        episode = kwargs.get("episode", 0) + 1
+        accumulated_reward = kwargs.get("accumulated_reward")
+        # self.alpha *= np.exp(-1 / accumulated_reward)
+        # if episode % 10 == 0:
+        #     self.alpha *= 0.8
 
 
 environment = GymEnvironment('CartPole-v0')
@@ -120,6 +124,7 @@ pipeline = AgentPipeline(
     encoding=cartpole_observation_encoder,
     time=15,
     num_episodes=100,
+    representation_time=7
     # log_writer=True,
     # plot_interval=1,
     # render_interval=1

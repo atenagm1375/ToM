@@ -113,6 +113,9 @@ class ObserverAgent(Agent):
 
         self.network = Network(dt=dt, learning=learning, reward_fn=reward_fn)
 
+        if self.method == 'first_spike':
+            self.random_counter = 0
+
     def build_network(self):
         raise NotImplementedError("Network elements should be defined and added.")
 
@@ -137,7 +140,7 @@ class ObserverAgent(Agent):
             spikes = spikes.squeeze().squeeze().nonzero()
 
             if spikes.shape[0] == 0:
-                print("random")
+                self.random_counter += 1
                 return self.environment.action_space.sample()
             else:
                 return spikes[0, 1]
@@ -216,7 +219,7 @@ class CartPoleObserverAgent(ObserverAgent):
         w1 = torch.normal(torch.zeros(s2.n, pm.n), 0.01 * torch.ones(s2.n, pm.n))
 
         s2_pm = Connection(s2, pm,
-                           nu=0.25,
+                           nu=0.008,
                            update_rule=MSTDPET,
                            wmin=-1.0,
                            wmax=1.0,

@@ -171,13 +171,13 @@ class AgentPipeline(EnvironmentPipeline):
         } if self.network.learning else {}
 
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
-                         reward=reward, curr_state=obs.squeeze(), **kwargs)
+                         reward=reward, **kwargs)
 
         if kwargs.get("log_path") is not None and not self.observer_agent.network.learning:
             self._log_info(kwargs["log_path"], obs.squeeze(), inputs)
 
         if done:
-            if self.network.reward_fn is not None:
+            if self.network.learning and self.network.reward_fn is not None:
                 self.network.reward_fn.update(
                     accumulated_reward=self.accumulated_reward,
                     steps=self.step_count,
@@ -207,13 +207,15 @@ class AgentPipeline(EnvironmentPipeline):
             self.action_function = self.expert_agent.select_action
             self.reset_state_variables()
 
-            last_state = torch.Tensor(self.env.env.state)
-
-            prev_obs, prev_reward, prev_done, info = self.env_step(**kwargs)
+            prev_obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
+            prev_reward = 1.
+            prev_done = False
+            info = {}
 
             new_done = False
             while not prev_done:
                 self.network.reset_state_variables()
+
                 prev_done = new_done
                 # The result of expert's action.
                 if not prev_done:
@@ -222,11 +224,10 @@ class AgentPipeline(EnvironmentPipeline):
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
                 self.step((prev_obs, prev_reward, prev_done, info),
-                          last_state=last_state, episode=self.episode, **kwargs)
+                          episode=self.episode, **kwargs)
                 if self.log_writer:
                     self._save_simulation_info(**kwargs)
 
-                last_state = prev_obs.squeeze()
                 prev_obs = new_obs
                 prev_reward = new_reward
 
@@ -351,6 +352,12 @@ class AgentPipeline(EnvironmentPipeline):
 
         self.test_rewards.append(self.reward_list.pop())
         print("Test - accumulated reward:", self.accumulated_reward)
+
+    def reset_state_variables(self) -> None:
+        super().reset_state_variables()
+        if self.observer_agent.method == 'first_spike':
+            print(self.observer_agent.random_counter)
+            self.observer_agent.random_counter = 0
 
     def env_reset(self) -> None:
         self.env.reset()
