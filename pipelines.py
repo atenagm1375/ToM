@@ -80,6 +80,7 @@ class AgentPipeline(EnvironmentPipeline):
         }
 
         self.test_rewards = []
+        self.time_recorder = 0
 
     def env_step(self, **kwargs) -> tuple:
         """
@@ -196,7 +197,7 @@ class AgentPipeline(EnvironmentPipeline):
 
         test_interval = kwargs.get("test_interval", None)
         num_tests = kwargs.get("num_tests", 1)
-
+        log_count = 0
         while self.episode < self.num_episodes:
             self.observer_agent.network.train(True)
             # Expert acts in the environment.
@@ -219,6 +220,9 @@ class AgentPipeline(EnvironmentPipeline):
                 # it modified the environment.
                 self.step((prev_obs, prev_reward, prev_done, info),
                           last_state=last_state, **kwargs)
+
+                self._save_simulation_info(**kwargs)
+
                 last_state = prev_obs.squeeze()
                 prev_obs = new_obs
                 prev_reward = new_reward
@@ -230,8 +234,9 @@ class AgentPipeline(EnvironmentPipeline):
 
             if test_interval is not None:
                 if (self.episode + 1) % test_interval == 0:
-                    for _ in range(num_tests):
-                        self.test(**kwargs)
+                    for nt in range(num_tests):
+                        self.test(num=(nt + 1) + (log_count * 5), **kwargs)
+                    log_count += 1
 
             self.episode += 1
 
@@ -324,6 +329,9 @@ class AgentPipeline(EnvironmentPipeline):
         self.action_function = self.observer_agent.select_action
         obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
         self.step((obs, 1.0, False, {}), **kwargs)
+
+        self._save_simulation_info(**kwargs)
+
         # obs, reward, done, info = self.env_step(**kwargs)
         # self.step((obs, reward, done, info), **kwargs)
         done = False
@@ -333,6 +341,8 @@ class AgentPipeline(EnvironmentPipeline):
 
             self.network.reset_state_variables()
             self.step((obs, reward, done, info), **kwargs)
+
+            self._save_simulation_info(**kwargs)
 
         self.test_rewards.append(self.reward_list.pop())
         print("Test - accumulated reward:", self.accumulated_reward)
@@ -345,6 +355,32 @@ class AgentPipeline(EnvironmentPipeline):
         self.action = torch.tensor(-1)
         self.last_action = torch.tensor(-1)
         self.action_counter = 0
+
+    def _save_simulation_info(self, **kwargs):
+        spikes = torch.cat([
+            self.network.monitors["S2"].get("s").squeeze(),
+            self.network.monitors["MT"].get("s").squeeze(),
+            self.network.monitors["PM"].get("s").squeeze(),
+        ], dim=1).nonzero()
+
+        if self.observer_agent.network.learning:
+            with open(f"train_spikes{self.episode}.txt", 'a') as tr:
+                for spike in spikes:
+                    tr.write(f"{spike[0] + self.time_recorder} {spike[1]}\n")
+            with open(f"train_weights{self.episode}.txt", 'a') as tr:
+                w = torch.cat([
+                    self.network.monitors["S2-PM"].get("w"),
+                    self.network.monitors["MT-PM"].get("w"),
+                ], dim=1)
+                for wt in range(len(w)):
+                    tr.write(f"{self.time_recorder + wt} {w[wt]}\n")
+        else:
+            num = kwargs["num"]
+            with open(f"test_spikes{num}.txt", 'a') as tr:
+                for spike in spikes:
+                    tr.write(f"{spike[0] + self.time_recorder} {spike[1]}\n")
+
+        self.time_recorder += self.time
 
     def _log_info(self, path, obs, encoded_input):
         # TODO change it later for inputs of shape n*m

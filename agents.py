@@ -208,7 +208,7 @@ class CartPoleObserverAgent(ObserverAgent):
                                traces_additive=True,
                                tc_trace=1.0,
                                trace_scale=0.0,
-                               thresh=-64.,
+                               thresh=-64.5,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=20,
