@@ -196,23 +196,23 @@ class CartPoleObserverAgent(ObserverAgent):
         # TODO Consider network structure
         s2 = Input(shape=[1, 21], traces=True,
                    traces_additive=True,
-                   tc_trace=1.0,
-                   trace_scale=0.0
+                   tc_trace=6.0,
+                   trace_scale=0.5
                    )
         mt = Input(shape=[1, 21], traces=True,
                    traces_additive=True,
-                   tc_trace=1.0,
-                   trace_scale=0.0
+                   tc_trace=6.0,
+                   trace_scale=0.5
                    )
         pm = DiehlAndCookNodes(shape=[2, 1], traces=True,
                                traces_additive=True,
                                tc_trace=1.0,
                                trace_scale=0.0,
-                               thresh=-64.5,
+                               thresh=-63.,
                                rest=-65.0,
                                reset=-65.0,
                                refrac=20,
-                               tc_decay=2.0,
+                               tc_decay=6.0,
                                theta_plus=0.0,
                                tc_theta_decay=1e6,
                                one_spike=True
