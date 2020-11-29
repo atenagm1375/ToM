@@ -222,7 +222,7 @@ class AgentPipeline(EnvironmentPipeline):
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
                 self.step((prev_obs, prev_reward, prev_done, info),
-                          last_state=last_state, **kwargs)
+                          last_state=last_state, episode=self.episode, **kwargs)
                 if self.log_writer:
                     self._save_simulation_info(**kwargs)
 
@@ -363,8 +363,7 @@ class AgentPipeline(EnvironmentPipeline):
 
     def _save_simulation_info(self, **kwargs):
         spikes = torch.cat([
-            self.network.monitors["S2"].get("s").squeeze(),
-            self.network.monitors["MT"].get("s").squeeze(),
+            self.network.monitors["S2"].get("s").squeeze().view(self.time, -1),
             self.network.monitors["PM"].get("s").squeeze(),
         ], dim=1).nonzero()
 
@@ -373,10 +372,7 @@ class AgentPipeline(EnvironmentPipeline):
                 for spike in spikes:
                     tr.write(f"{spike[0] + self.time_recorder} {spike[1]}\n")
             with open(f"train_weights{self.episode}.txt", 'a') as tr:
-                w = torch.cat([
-                    self.network.monitors["S2-PM"].get("w"),
-                    self.network.monitors["MT-PM"].get("w"),
-                ], dim=1)
+                w = self.network.monitors["S2-PM"].get("w")
                 for wt in range(len(w)):
                     tr.write(f"{self.time_recorder + wt} {w[wt]}\n")
         else:
