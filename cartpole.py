@@ -85,6 +85,7 @@ def noise_policy(episode, num_episodes, **kwargs):
 class CartPoleReward(AbstractReward):
     def __init__(self, **kwargs):
         self.alpha = 1.0
+        self.accumulated_rewards = []
 
     def compute(self, **kwargs):
         reward = kwargs["reward"]
@@ -104,6 +105,9 @@ class CartPoleReward(AbstractReward):
     def update(self, **kwargs):
         episode = kwargs.get("episode", 0) + 1
         accumulated_reward = kwargs.get("accumulated_reward")
+        self.accumulated_rewards.append(accumulated_reward)
+        if np.mean(self.accumulated_rewards[-10:]) >= 195:
+            self.alpha *= 0.1
         # self.alpha *= np.exp(-1 / accumulated_reward)
         # if episode % 10 == 0:
         #     self.alpha *= 0.8
