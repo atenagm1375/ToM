@@ -223,8 +223,7 @@ class AgentPipeline(EnvironmentPipeline):
 
                 # The observer watches the result of expert's action and how
                 # it modified the environment.
-                self.step((prev_obs, prev_reward, prev_done, info),
-                          episode=self.episode, **kwargs)
+                self.step((prev_obs, prev_reward, prev_done, info), **kwargs)
                 if self.log_writer:
                     self._save_simulation_info(**kwargs)
 
@@ -243,79 +242,6 @@ class AgentPipeline(EnvironmentPipeline):
                     log_count += 1
 
             self.episode += 1
-
-    def train_by_observation_action(
-            self,
-            action_interval: int = 10,
-            num_repeated_actions: int = 1,
-            **kwargs
-    ) -> None:
-        """
-        Train observer agent by frequent observation-action trials.
-
-        Parameters
-        ----------
-        action_interval: int, optional
-            Number of observation episodes before an action taking episode.
-            The default is 10.
-        num_repeated_actions: int, optional
-            Number of actions to be taken after observation. The default is 1.
-
-        Keyword Arguments
-        -----------------
-
-        Returns
-        -------
-        None
-
-        """
-        # TODO reconsider
-        self.observer_agent.network.train(True)
-
-        while self.episode < self.num_episodes:
-            self.action_function = self.expert_agent.select_action
-            self.reset_state_variables()
-            done = False
-            while not done:
-                self.network.reset_state_variables()
-                obs, reward, done, info = self.env_step(**kwargs)
-
-                self.step((obs, reward, done, info), **kwargs)
-
-            print("Observing...\n"
-                f"Episode: {self.episode} - "
-                f"accumulated reward: {self.accumulated_reward:.2f}"
-            )
-
-            if (self.episode + 1) % action_interval == 0:
-                self.action_function = self.observer_agent.select_action
-                for repeated_action_counts in range(num_repeated_actions):
-                    self.env_reset()
-                    done = False
-                    while not done:
-                        self.network.reset_state_variables()
-                        obs, reward, done, info = self.env_step(**kwargs)
-
-                        self.step((obs, reward, done, info), **kwargs)
-
-                    print("Taking action...\n"
-                        f"Episode: {repeated_action_counts} - "
-                        f"accumulated reward: {self.accumulated_reward:.2f}"
-                    )
-
-            self.episode += 1
-
-    def self_train(self, **kwargs) -> None:
-        """
-        Train observer agent's network by acting in the environment.
-
-        Returns
-        -------
-        None
-
-        """
-        # TODO fill the body
-        pass
 
     def test(self, **kwargs) -> None:
         """
@@ -337,8 +263,6 @@ class AgentPipeline(EnvironmentPipeline):
         if self.log_writer:
             self._save_simulation_info(**kwargs)
 
-        # obs, reward, done, info = self.env_step(**kwargs)
-        # self.step((obs, reward, done, info), **kwargs)
         done = False
         while not done:
             # The result of observer's action.

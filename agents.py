@@ -288,7 +288,7 @@ class ExpertAgent(Agent):
 
         super().__init__(environment, allow_gpu)
         self.method = method
-        self.noise_policy = kwargs.get('noise_policy', lambda x: 0.5)
+        self.noise_policy = kwargs.get('noise_policy', lambda **kwargs: 0)
 
     def select_action(self,
                       **kwargs) -> int:

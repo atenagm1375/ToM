@@ -25,7 +25,7 @@ from agents import CartPoleObserverAgent, ExpertAgent
 from pipelines import AgentPipeline
 
 
-def compute_spikes(datum, time, low, high, device):
+def _compute_spikes(datum, time, low, high, device):
     times = torch.linspace(low, high, time, device=device)
     spike_times = torch.argmin(torch.abs(datum - times))
     spikes = (np.array(spike_times.to('cpu')).astype(int) ==
@@ -43,7 +43,8 @@ def cartpole_observation_encoder(
         **kwargs,
 ) -> torch.Tensor:
     """
-    Encode observation vector.
+    Encode observation vector (Only uses data related to angle). It encodes
+    a value and its complement in time. So there are two neurons per value.
 
     Parameters
     ----------
@@ -54,13 +55,11 @@ def cartpole_observation_encoder(
 
     Keyword Arguments
     -----------------
-    n_neurons : int
-        Specifies number of neurons which encode each value.
 
     Returns
     -------
-    torch.Tensor
-        The encoded data.
+    dict
+        The tensor of encoded data per input population.
 
     """
     device = "cpu" if datum.get_device() < 0 else 'cuda'
@@ -69,59 +68,77 @@ def cartpole_observation_encoder(
     min_angle, max_angle = -0.418, 0.418
     min_velocity, max_velocity = -2, 2
 
-    angle_spikes = compute_spikes(angle, time, min_angle, max_angle, device)
-    velocity_spikes = compute_spikes(velocity, time, min_velocity,
+    angle_spikes = _compute_spikes(angle, time, min_angle, max_angle, device)
+    velocity_spikes = _compute_spikes(velocity, time, min_velocity,
                                      max_velocity, device)
 
     spikes = torch.stack([angle_spikes, velocity_spikes]).T
 
     return {"S2": spikes.unsqueeze(1).byte().to(device)}
 
-def noise_policy(episode, num_episodes, **kwargs):
+
+def _noise_policy(episode, num_episodes, **kwargs):
     return (1 - episode / num_episodes) ** 2
-    # return np.exp(-4 * episode/num_episodes)
 
 
 class CartPoleReward(AbstractReward):
+    """
+    Computes the error based on whether the episode is done or not. The reward
+    amount decreases as the agent observes more good episodes.
+
+    Parameters
+    ----------
+
+    Keyword Arguments
+    -----------------
+
+    """
     def __init__(self, **kwargs):
-        self.alpha = 1.0
-        self.accumulated_rewards = []
+        self.alpha = 1.0  # reward multiplier
+        self.accumulated_rewards = []  # holder of observation evaluations
 
     def compute(self, **kwargs):
+        """
+        Compute the reward.
+
+        Keyword Arguments
+        -----------------
+        reward : float
+            The reward value returned from the environment
+
+        """
         reward = kwargs["reward"]
-        # last_state = kwargs["last_state"]
-        # curr_state = kwargs["curr_state"]
-        #
-        # if reward > 0:
-        #     if torch.abs(curr_state[2]) <= torch.abs(last_state[2]):
-        #         return 1
-        #     elif torch.allclose(curr_state[2], last_state[2], 1e-4, 1e-5):
-        #         return 0.5
-        #     else:
-        #         return -0.5
-        # return -1
         return reward * self.alpha if reward > 0 else -self.alpha
 
     def update(self, **kwargs):
-        episode = kwargs.get("episode", 0) + 1
+        """
+        Update internal attributes.
+
+        Keyword Arguments
+        -----------------
+        accumulated_reward : float
+            The value of accumulated reward in the episode.
+
+        """
         accumulated_reward = kwargs.get("accumulated_reward")
         self.accumulated_rewards.append(accumulated_reward)
         if np.mean(self.accumulated_rewards[-10:]) >= 195:
             self.alpha *= 0.1
-        # self.alpha *= np.exp(-1 / accumulated_reward)
-        # if episode % 10 == 0:
-        #     self.alpha *= 0.8
 
 
+# Define the environment
 environment = GymEnvironment('CartPole-v0')
-environment.reset()
 
+# Define observer agent, acting on first spike
 observer = CartPoleObserverAgent(environment, dt=1.0, method='first_spike',
                                  reward_fn=CartPoleReward)
 
+# Define expert agent acting on pretrained weights (weight is multiplied by
+# observation vector)
 expert = ExpertAgent(environment, method='from_weight',
-                     noise_policy=noise_policy)
+                     noise_policy=_noise_policy)
 
+# Define the pipeline by which the agents interact
 pipeline = AgentPipeline(
     observer_agent=observer,
     expert_agent=expert,
@@ -129,9 +146,6 @@ pipeline = AgentPipeline(
     time=15,
     num_episodes=100,
     representation_time=7
-    # log_writer=True,
-    # plot_interval=1,
-    # render_interval=1
 )
 
 w1 = pipeline.network.connections[("S2", "PM")].w
@@ -149,13 +163,3 @@ print(w1)
 print(pipeline.test_rewards)
 test_rewards = np.array(pipeline.test_rewards).reshape(-1, 5)
 print(list(map(np.mean, test_rewards)))
-
-# for i in range(100):
-#     pipeline.test()
-
-# test_rewards = pipeline.test_rewards[-100:]
-# print("min:", np.min(test_rewards), "max:", np.max(test_rewards), "average:",
-#        np.mean(test_rewards))
-# plt.ioff()
-# plt.plot(pipeline.test_rewards)
-# plt.show()
