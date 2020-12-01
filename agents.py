@@ -219,7 +219,7 @@ class CartPoleObserverAgent(ObserverAgent):
         w1 = torch.normal(torch.zeros(s2.n, pm.n), 0.01 * torch.ones(s2.n, pm.n))
 
         s2_pm = Connection(s2, pm,
-                           nu=0.008,
+                           nu=0.2,
                            update_rule=MSTDPET,
                            wmin=-1.0,
                            wmax=1.0,
