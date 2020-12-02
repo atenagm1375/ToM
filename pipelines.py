@@ -28,14 +28,13 @@ class AgentPipeline(EnvironmentPipeline):
     expert_agent : ExpertAgent
         The expert agent in the environment.
     encoding : callable, optional
-        The observation encoder function. The default is None.
+        The observation encoder function that returns a dict of torch tensors.
+        The default is None.
 
     Keyword Arguments
     -----------------
     num_episodes : int
         Number of episodes to train for. The default is 100.
-    output : str
-        String name of the layer from which to take output.
     render_interval : int
         Interval to render the environment.
     reward_delay : int
@@ -44,6 +43,12 @@ class AgentPipeline(EnvironmentPipeline):
         Time for which to run the network.
     overlay_input : int
         Overlay the last X previous input.
+    representation_time : int
+        The time to represent the expert's action to Premotor of the observer.
+        The default is -1.
+    log_writer : bool
+        Whether to create text log files of weights and spikes (For debug purpose).
+        The default is False.
 
     """
 
@@ -92,6 +97,9 @@ class AgentPipeline(EnvironmentPipeline):
         Includes rendering, getting and performing the action, and
         accumulating/delaying rewards.
 
+        KeywordArguments
+        ----------------
+
         Returns
         -------
         obs : torch.Tensor
@@ -102,9 +110,6 @@ class AgentPipeline(EnvironmentPipeline):
             Indicates if the the episode is terminated.
         info : dict
             The information dictionary for verbose.
-
-        KeywordArguments
-        ----------------
 
         """
         # Render game.
@@ -150,26 +155,33 @@ class AgentPipeline(EnvironmentPipeline):
         gym_batch : tuple[torch.Tensor, float, bool, dict]
             An OpenAI gym compatible tuple.
 
+        Keyword Arguments
+        -----------------
+        log_path : str
+            The path to save plots per step of each episode.
+
         Returns
         -------
         None
 
         """
         obs, reward, done, info = gym_batch
-
+        # Encode the observation
         inputs = self.encoding(obs, self.time, **kwargs)
 
+        # Clamp output to spike at `representation_time` based on expert's action.
         pm_n = self.network.layers["PM"].n
         n_action = self.env.action_space.n
         pm_v = torch.zeros(self.time, pm_n)
-        pm_v[self.representation_time, pm_n//n_action * self.action: \
-                                    pm_n//n_action * (self.action + 1)] = 1
+        pm_v[self.representation_time, pm_n//n_action * self.action:
+             pm_n//n_action * (self.action + 1)] = 1
 
         pm_v = pm_v.view(self.time, n_action, -1).byte()
         clamp = {
             "PM": pm_v.to(self.device)
         } if self.network.learning else {}
 
+        # Run the network
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
                          reward=reward, **kwargs)
 
@@ -191,6 +203,13 @@ class AgentPipeline(EnvironmentPipeline):
         """
         Train observer agent's network by observing the expert.
 
+        Keyword Arguments
+        -----------------
+        test_interval : int
+            The interval of testing the network. The default is 1.
+        num_tests : int
+            The number of tests in each test interval. The default is 1.
+
         Returns
         -------
         None
@@ -198,7 +217,7 @@ class AgentPipeline(EnvironmentPipeline):
         """
         self.observer_agent.network.train(True)
 
-        test_interval = kwargs.get("test_interval", None)
+        test_interval = kwargs.get("test_interval", 1)
         num_tests = kwargs.get("num_tests", 1)
         log_count = 0
         while self.episode < self.num_episodes:
@@ -279,8 +298,7 @@ class AgentPipeline(EnvironmentPipeline):
 
     def reset_state_variables(self) -> None:
         super().reset_state_variables()
-        if self.observer_agent.method == 'first_spike':
-            print(self.observer_agent.random_counter)
+        if not self.network.learning and self.observer_agent.method == 'first_spike':
             self.observer_agent.random_counter = 0
 
     def env_reset(self) -> None:
@@ -338,7 +356,7 @@ class AgentPipeline(EnvironmentPipeline):
         axes[0, 1].plot(v[:, 0], c='r', label="0")
         axes[0, 1].plot(v[:, 1], c='b', label="1")
         axes[0, 1].set(ylim=[self.network.layers["PM"].rest.to("cpu"),
-                       self.network.layers["PM"].thresh.to("cpu")])
+                             self.network.layers["PM"].thresh.to("cpu")])
         axes[0, 1].legend()
 
         s = self.network.monitors["PM"].get("s").squeeze().nonzero().to("cpu")

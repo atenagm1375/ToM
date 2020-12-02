@@ -116,7 +116,17 @@ class ObserverAgent(Agent):
         if self.method == 'first_spike':
             self.random_counter = 0
 
-    def build_network(self):
+    def build_network(self) -> None:
+        """
+        Abstract method to build the network. Note that your output population
+        should be named as `PM`, indicating the Premotor population.
+
+        Returns
+        -------
+        None
+
+        """
+
         raise NotImplementedError("Network elements should be defined and added.")
 
     def select_action(self,
@@ -195,13 +205,22 @@ class CartPoleObserverAgent(ObserverAgent):
 
         super().__init__(environment, method, dt, learning, reward_fn, allow_gpu)
 
-    def build_network(self):
-        # TODO Consider network structure
+    def build_network(self) -> None:
+        """
+        Build network for CartPole agent.
+
+        Returns
+        -------
+        None
+
+        """
+        # Input layer
         s2 = Input(shape=[2, 2], traces=True,
                    traces_additive=True,
                    tc_trace=1.0,
                    trace_scale=0.0
                    )
+        # Output layer
         pm = DiehlAndCookNodes(shape=[2, 1], traces=True,
                                traces_additive=True,
                                tc_trace=1.0,
@@ -215,9 +234,10 @@ class CartPoleObserverAgent(ObserverAgent):
                                tc_theta_decay=1e6,
                                one_spike=True
                                )
-
+        # Initial weights
         w1 = torch.normal(torch.zeros(s2.n, pm.n), 0.01 * torch.ones(s2.n, pm.n))
 
+        # Input to output connections which will be trained using R-STDP
         s2_pm = Connection(s2, pm,
                            nu=0.2,
                            update_rule=MSTDPET,
@@ -229,16 +249,18 @@ class CartPoleObserverAgent(ObserverAgent):
                            tc_e_trace=180.,
                            # weight_decay=1e-6,
                            )
+        # Inhibitory connection on output neurons to regulate their activation
         pm_pm = Connection(pm, pm,
                            w=-0.5 * (torch.ones(pm.n))
                            )
 
+        # Add layers/populations to the network
         self.network.add_layer(s2, "S2")
         self.network.add_layer(pm, "PM")
-
+        # Add connections to the network
         self.network.add_connection(s2_pm, "S2", "PM")
         self.network.add_connection(pm_pm, "PM", "PM")
-
+        # Add monitors
         self.network.add_monitor(
             Monitor(self.network.layers["PM"], ["s", "v"]), "PM",
         )

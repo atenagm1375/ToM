@@ -7,41 +7,48 @@ cartpole.py
 
 ==============================================================================.
 """
+# -----------------------------------------------------------------------------
+# The following 2 lines are only to use the modified version of BindsNet.
+# You can find it on my GitHub forked BindsNet on branch atena.
+# Without it, you may face errors.
 import sys
 
 sys.path.append('../bindsnet/')
-
-
+# -----------------------------------------------------------------------------
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-
 from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import AbstractReward, MovingAvgRPE
 from bindsnet.network.monitors import Monitor
 from bindsnet.analysis.plotting import plot_weights
-
 from agents import CartPoleObserverAgent, ExpertAgent
 from pipelines import AgentPipeline
 
 
-def _compute_spikes(datum, time, low, high, device):
+def _compute_spikes(
+    datum: torch.Tensor,
+    time: int,
+    low: float,
+    high: float,
+    device: str
+) -> torch.Tensor:
     times = torch.linspace(low, high, time, device=device)
     spike_times = torch.argmin(torch.abs(datum - times))
     spikes = (np.array(spike_times.to('cpu')).astype(int) ==
-                    range(0, time)).astype(int)
+              range(0, time)).astype(int)
     reverse_spikes = np.flip(spikes).copy()
     return torch.stack([
-                torch.from_numpy(spikes).to(device),
-                torch.from_numpy(reverse_spikes).to(device)
-            ]).byte()
+        torch.from_numpy(spikes).to(device),
+        torch.from_numpy(reverse_spikes).to(device)
+    ]).byte()
 
 
 def cartpole_observation_encoder(
         datum: torch.Tensor,
         time: int,
         **kwargs,
-) -> torch.Tensor:
+) -> dict:
     """
     Encode observation vector (Only uses data related to angle). It encodes
     a value and its complement in time. So there are two neurons per value.
@@ -70,7 +77,7 @@ def cartpole_observation_encoder(
 
     angle_spikes = _compute_spikes(angle, time, min_angle, max_angle, device)
     velocity_spikes = _compute_spikes(velocity, time, min_velocity,
-                                     max_velocity, device)
+                                      max_velocity, device)
 
     spikes = torch.stack([angle_spikes, velocity_spikes]).T
 
@@ -93,6 +100,7 @@ class CartPoleReward(AbstractReward):
     -----------------
 
     """
+
     def __init__(self, **kwargs):
         self.alpha = 1.0  # reward multiplier
         self.accumulated_rewards = []  # holder of observation evaluations
