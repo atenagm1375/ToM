@@ -48,6 +48,9 @@ class AgentPipeline(EnvironmentPipeline):
     representation_time : int
         The time to represent the expert's action to Premotor of the observer.
         The default is -1.
+    keep_state : bool
+        Whether to keep state of network from previous step or not.
+        The default is False.
     log_writer : bool
         Whether to create text log files of weights and spikes (For debug purpose).
         The default is False.
@@ -61,11 +64,11 @@ class AgentPipeline(EnvironmentPipeline):
             encoding: callable = None,
             **kwargs,
     ) -> None:
-
-        assert (observer_agent.environment == expert_agent.environment), \
-            "Observer and Expert must be located in the same environment."
-        assert (observer_agent.device == expert_agent.device), \
-            "Observer and Expert objects must be on same device."
+        if expert_agent is not None:
+            assert (observer_agent.environment == expert_agent.environment), \
+                "Observer and Expert must be located in the same environment."
+            assert (observer_agent.device == expert_agent.device), \
+                "Observer and Expert objects must be on same device."
 
         self.observer_agent = observer_agent
         self.observer_agent.build_network()
@@ -82,6 +85,8 @@ class AgentPipeline(EnvironmentPipeline):
 
         self.representation_time = kwargs.get('representation_time', -1)
 
+        self.keep_state = kwargs.get('keep_state', False)
+
         self.log_writer = kwargs.get('log_writer', False)
 
         self.plot_config = {
@@ -94,6 +99,8 @@ class AgentPipeline(EnvironmentPipeline):
             now = datetime.datetime.now().strftime("%d-%m-%Y-%H:%M")
             self._log_path = f"./log-{now}"
             os.mkdir(self._log_path)
+
+        self.babble = False
 
     def env_step(self, **kwargs) -> tuple:
         """
@@ -175,16 +182,18 @@ class AgentPipeline(EnvironmentPipeline):
         inputs = self.encoding(obs, self.time, **kwargs)
 
         # Clamp output to spike at `representation_time` based on expert's action.
-        pm_n = self.network.layers["PM"].n
-        n_action = self.env.action_space.n
-        pm_v = torch.zeros(self.time, pm_n)
-        pm_v[self.representation_time, pm_n//n_action * self.action:
-             pm_n//n_action * (self.action + 1)] = 1
+        clamp = {}
+        if not self.babble:
+            pm_n = self.network.layers["PM"].n
+            n_action = self.env.action_space.n
+            pm_v = torch.zeros(self.time, pm_n)
+            pm_v[self.representation_time, pm_n//n_action * self.action:
+                 pm_n//n_action * (self.action + 1)] = 1
 
-        pm_v = pm_v.view(self.time, n_action, -1).byte()
-        clamp = {
-            "PM": pm_v.to(self.device)
-        } if self.network.learning else {}
+            pm_v = pm_v.view(self.time, n_action, -1).byte()
+            clamp = {
+                "PM": pm_v.to(self.device)
+            } if self.network.learning else {}
 
         # Run the network
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
@@ -204,50 +213,50 @@ class AgentPipeline(EnvironmentPipeline):
             # Update reward list for plotting purposes.
             self.reward_list.append(self.accumulated_reward)
 
-    def train_by_observation(self, **kwargs) -> None:
-        """
-        Train observer agent's network by observing the expert.
-
-        Keyword Arguments
-        -----------------
-        test_interval : int
-            The interval of testing the network. The default is 1.
-        num_tests : int
-            The number of tests in each test interval. The default is 1.
-
-        Returns
-        -------
-        None
-
-        """
-        self.observer_agent.network.train(True)
-
+    def _train(self, **kwargs) -> None:
         test_interval = kwargs.get("test_interval", 1)
         num_tests = kwargs.get("num_tests", 1)
         log_count = 0
         while self.episode < self.num_episodes:
             self.observer_agent.network.train(True)
-            # Expert acts in the environment.
-            self.action_function = self.expert_agent.select_action
+
+            if self.babble:
+                self.action_function = self.observer_agent.select_action
+            else:
+                # Expert acts in the environment.
+                self.action_function = self.expert_agent.select_action
             self.reset_state_variables()
 
-            prev_obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
+            if hasattr(self.env.env, 'state'):
+                prev_obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
+            else:
+                prev_obs = torch.Tensor(self.env.reset()).to(self.observer_agent.device)
             prev_reward = 1.
             prev_done = False
             info = {}
 
+            if self.babble:
+                self.step((prev_obs, 1.0, False, {}), **kwargs)
+
             new_done = False
             while not prev_done:
-                self.network.reset_state_variables()
-
                 prev_done = new_done
                 # The result of expert's action.
                 if not prev_done:
                     new_obs, new_reward, new_done, info = self.env_step(**kwargs)
 
-                # The observer watches the result of expert's action and how
-                # it modified the environment.
-                self.step((prev_obs, prev_reward, prev_done, info), **kwargs)
+                if not self.keep_state:
+                    self.network.reset_state_variables()
+                else:
+                    self.monitor_reset()
+
+                if not self.babble:
+                    # The observer watches the result of expert's action and how
+                    # it modified the environment.
+                    self.step((prev_obs, prev_reward, prev_done, info), **kwargs)
+                else:
+                    self.step((new_obs, new_reward, new_done, info), **kwargs)
+
                 if self.log_writer:
                     self._save_simulation_info(**kwargs)
 
@@ -266,6 +275,46 @@ class AgentPipeline(EnvironmentPipeline):
                     log_count += 1
 
             self.episode += 1
+
+    def train_by_observation(self, **kwargs) -> None:
+        """
+        Train observer agent's network by observing the expert.
+
+        Keyword Arguments
+        -----------------
+        test_interval : int
+            The interval of testing the network. The default is 1.
+        num_tests : int
+            The number of tests in each test interval. The default is 1.
+
+        Returns
+        -------
+        None
+
+        """
+        self.observer_agent.network.train(True)
+        self.babble = False
+        self._train(**kwargs)
+
+    def train_by_babbling(self, **kwargs) -> None:
+        """
+        Train observer agent's network by babbling.
+
+        Keyword Arguments
+        -----------------
+        test_interval : int
+            The interval of testing the network. The default is 1.
+        num_tests : int
+            The number of tests in each test interval. The default is 1.
+
+        Returns
+        -------
+        None
+
+        """
+        self.observer_agent.network.train(True)
+        self.babble = True
+        self._train(**kwargs)
 
     def test(self, **kwargs) -> None:
         """
@@ -292,7 +341,11 @@ class AgentPipeline(EnvironmentPipeline):
             # The result of observer's action.
             obs, reward, done, info = self.env_step(**kwargs)
 
-            self.network.reset_state_variables()
+            if not self.keep_state:
+                self.network.reset_state_variables()
+            else:
+                self.monitor_reset()
+
             self.step((obs, reward, done, info), **kwargs)
 
             if self.log_writer:
@@ -314,6 +367,10 @@ class AgentPipeline(EnvironmentPipeline):
         self.action = torch.tensor(-1)
         self.last_action = torch.tensor(-1)
         self.action_counter = 0
+
+    def monitor_reset(self) -> None:
+        for monitor in self.network.monitors:
+            monitor.reset_state_variables()
 
     def _save_simulation_info(self, **kwargs):
         spikes = torch.cat([
