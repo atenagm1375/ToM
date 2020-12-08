@@ -9,7 +9,7 @@ cartpole.py
 """
 # -----------------------------------------------------------------------------
 # The following 2 lines are only to use the modified version of BindsNet.
-# You can find it on my GitHub forked BindsNet on branch atena.
+# You can find it on https://github.com/atenagm1375/bindsnet/tree/atena.
 # Without it, you may face errors.
 import sys
 
@@ -22,8 +22,8 @@ from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import AbstractReward, MovingAvgRPE
 from bindsnet.network.monitors import Monitor
 from bindsnet.analysis.plotting import plot_weights
-from agents import CartPoleObserverAgent, ExpertAgent
-from pipelines import AgentPipeline
+from ToM.agents import CartPoleObserverAgent, ExpertAgent
+from ToM.pipelines import AgentPipeline
 
 
 def _compute_spikes(
@@ -160,7 +160,7 @@ w1 = pipeline.network.connections[("S2", "PM")].w
 # plot_weights(w1)
 print(w1)
 
-pipeline.train_by_observation(weight='/home/atenagm/hill_climbing.pt',
+pipeline.train_by_observation(weight='./experts/hill_climbing.pt',
                               test_interval=10, num_tests=5)
 print("Observation Finished")
 #

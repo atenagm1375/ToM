@@ -8,13 +8,15 @@ pipelines.py
 ==============================================================================.
 """
 
+import os
+import datetime
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from bindsnet.pipeline.environment_pipeline import EnvironmentPipeline
 
-from agents import ObserverAgent, ExpertAgent
+from ToM.agents import ObserverAgent, ExpertAgent
 
 
 class AgentPipeline(EnvironmentPipeline):
@@ -89,6 +91,9 @@ class AgentPipeline(EnvironmentPipeline):
         self.test_rewards = []
         if self.log_writer:
             self.time_recorder = 0
+            now = datetime.datetime.now().strftime("%d-%m-%Y-%H:%M")
+            self._log_path = f"./log-{now}"
+            os.mkdir(self._log_path)
 
     def env_step(self, **kwargs) -> tuple:
         """
@@ -317,16 +322,16 @@ class AgentPipeline(EnvironmentPipeline):
         ], dim=1).nonzero()
 
         if self.observer_agent.network.learning:
-            with open(f"train_spikes{self.episode}.txt", 'a') as tr:
+            with open(f"{self._log_path}/train_spikes{self.episode}.txt", 'a') as tr:
                 for spike in spikes:
                     tr.write(f"{spike[0] + self.time_recorder} {spike[1]}\n")
-            with open(f"train_weights{self.episode}.txt", 'a') as tr:
+            with open(f"{self._log_path}/train_weights{self.episode}.txt", 'a') as tr:
                 w = self.network.monitors["S2-PM"].get("w")
                 for wt in range(len(w)):
                     tr.write(f"{self.time_recorder + wt} {w[wt]}\n")
         else:
             num = kwargs["num"]
-            with open(f"test_spikes{num}.txt", 'a') as tr:
+            with open(f"{self._log_path}/test_spikes{num}.txt", 'a') as tr:
                 for spike in spikes:
                     tr.write(f"{spike[0] + self.time_recorder} {spike[1]}\n")
 
