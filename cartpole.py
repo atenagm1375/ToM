@@ -22,8 +22,8 @@ from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import AbstractReward, MovingAvgRPE
 from bindsnet.network.monitors import Monitor
 from bindsnet.analysis.plotting import plot_weights
-from ToM.agents import CartPoleObserverAgent, ExpertAgent
-from ToM.pipelines import AgentPipeline
+from interactive_env.agents import CartPoleObserverAgent, ExpertAgent
+from interactive_env.pipelines import ToMPipeline
 
 
 def _compute_spikes(
@@ -147,7 +147,7 @@ expert = ExpertAgent(environment, method='from_weight',
                      noise_policy=_noise_policy)
 
 # Define the pipeline by which the agents interact
-pipeline = AgentPipeline(
+pipeline = ToMPipeline(
     observer_agent=observer,
     expert_agent=expert,
     encoding=cartpole_observation_encoder,
@@ -160,7 +160,7 @@ w1 = pipeline.network.connections[("S2", "PM")].w
 # plot_weights(w1)
 print(w1)
 
-pipeline.train_by_observation(weight='./experts/hill_climbing.pt',
+pipeline.observe_learn(weight='./experts/hill_climbing.pt',
                               test_interval=10, num_tests=5)
 print("Observation Finished")
 #

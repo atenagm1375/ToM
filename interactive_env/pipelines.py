@@ -16,10 +16,10 @@ import matplotlib.pyplot as plt
 
 from bindsnet.pipeline.environment_pipeline import EnvironmentPipeline
 
-from ToM.agents import ObserverAgent, ExpertAgent
+from interactive_env.agents import ObserverAgent, ExpertAgent
 
 
-class AgentPipeline(EnvironmentPipeline):
+class ToMPipeline(EnvironmentPipeline):
     """
     Abstracts the interaction between agents in the environment.
 
@@ -67,8 +67,11 @@ class AgentPipeline(EnvironmentPipeline):
         assert (observer_agent.device == expert_agent.device), \
             "Observer and Expert objects must be on same device."
 
+        self.device = observer_agent.device
+
         self.observer_agent = observer_agent
         self.observer_agent.build_network()
+        kwargs["output"] = kwargs.get("output", "PM")
 
         super().__init__(
             observer_agent.network,
@@ -81,6 +84,8 @@ class AgentPipeline(EnvironmentPipeline):
         self.expert_agent = expert_agent
 
         self.representation_time = kwargs.get('representation_time', -1)
+
+        self.keep_state = kwargs.get('keep_state', False)
 
         self.log_writer = kwargs.get('log_writer', False)
 
@@ -124,7 +129,7 @@ class AgentPipeline(EnvironmentPipeline):
         ):
             self.env.render()
 
-        # Choose action based on output neuron spiking.
+        # Choose action.
         if self.action_function is not None:
             self.action = self.action_function(episode=self.episode,
                                                num_episodes=self.num_episodes,
@@ -146,6 +151,16 @@ class AgentPipeline(EnvironmentPipeline):
         info["accumulated_reward"] = self.accumulated_reward
 
         return obs, reward, done, info
+
+    def _mirror(self) -> dict:
+        out_n = self.network.layers[self.output].n
+        n_action = self.env.action_space.n
+        out_s = torch.zeros(self.time, out_n)
+        out_s[self.representation_time, out_n//n_action * self.action:
+             out_n//n_action * (self.action + 1)] = 1
+
+        out_s = out_s.view(self.time, n_action, -1).byte().to(self.device)
+        return {self.output: out_s}
 
     def step_(
             self,
@@ -175,16 +190,9 @@ class AgentPipeline(EnvironmentPipeline):
         inputs = self.encoding(obs, self.time, **kwargs)
 
         # Clamp output to spike at `representation_time` based on expert's action.
-        pm_n = self.network.layers["PM"].n
-        n_action = self.env.action_space.n
-        pm_v = torch.zeros(self.time, pm_n)
-        pm_v[self.representation_time, pm_n//n_action * self.action:
-             pm_n//n_action * (self.action + 1)] = 1
-
-        pm_v = pm_v.view(self.time, n_action, -1).byte()
-        clamp = {
-            "PM": pm_v.to(self.device)
-        } if self.network.learning else {}
+        clamp = {}
+        if self.network.learning:
+            clamp = self._mirror()
 
         # Run the network
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
@@ -203,6 +211,74 @@ class AgentPipeline(EnvironmentPipeline):
 
             # Update reward list for plotting purposes.
             self.reward_list.append(self.accumulated_reward)
+
+    def __get_init_state(self) -> tuple:
+        obs = torch.Tensor(self.env.env.state).to(self.device)
+        reward = 1.
+        done = False
+        info = {}
+        return (obs, reward, done, info)
+
+    def _train(self, training_act=False, **kwargs):
+        while self.episode < self.num_episodes:
+            if not training_act:
+                self.observer_agent.network.train(True)
+
+            # Expert acts in the environment.
+            self.action_function = self.expert_agent.select_action
+
+            # Initialize environment.
+            self.reset_state_variables()
+            prev_obs, prev_reward, prev_done, info = self.__get_init_state()
+
+            new_done = False
+            while not prev_done:
+                if not self.keep_state:
+                    self.network.reset_state_variables()
+                else:
+                    self.reset_monitors()
+
+                prev_done = new_done
+                # The result of expert's action.
+                if not prev_done:
+                    new_obs, new_reward, new_done, info = self.env_step(**kwargs)
+
+                # The observer watches the result of expert's action and how
+                # it modified the environment.
+                self.step((prev_obs, prev_reward, prev_done, info), **kwargs)
+                if self.log_writer:
+                    self._save_simulation_info(**kwargs)
+
+                prev_obs = new_obs
+                prev_reward = new_reward
+
+            print(
+                f"Episode: {self.episode} - "
+                f"accumulated reward: {self.accumulated_reward:.2f}"
+            )
+
+            self._test(training_act, **kwargs)
+            self.episode += 1
+
+    def _test(self, training_act, **kwargs) -> None:
+        test_interval = kwargs.get("test_interval", None)
+        num_tests = kwargs.get("num_tests", 1)
+        log_count = 0
+
+        if test_interval is not None:
+            if (self.episode + 1) % test_interval == 0:
+                for nt in range(num_tests):
+                    self.act(training_act,
+                             num=(nt + 1) + (log_count * 5), **kwargs)
+                log_count += 1
+
+    def observe_learn(self, **kwargs):
+        self.observer_agent.network.train(True)
+        self._train(**kwargs)
+
+    def observe_act_learn(self, **kwargs):
+        self.observer_agent.network.train(True)
+        self._train(training_act=True, **kwargs)
 
     def train_by_observation(self, **kwargs) -> None:
         """
@@ -262,12 +338,12 @@ class AgentPipeline(EnvironmentPipeline):
             if test_interval is not None:
                 if (self.episode + 1) % test_interval == 0:
                     for nt in range(num_tests):
-                        self.test(num=(nt + 1) + (log_count * 5), **kwargs)
+                        self.act(num=(nt + 1) + (log_count * 5), **kwargs)
                     log_count += 1
 
             self.episode += 1
 
-    def test(self, **kwargs) -> None:
+    def act(self, training_act=False, **kwargs) -> None:
         """
         Test the observer agent in the environment.
 
@@ -276,7 +352,7 @@ class AgentPipeline(EnvironmentPipeline):
         None
 
         """
-        self.observer_agent.network.train(False)
+        self.observer_agent.network.train(training_act)
 
         self.reset_state_variables()
 
@@ -306,7 +382,7 @@ class AgentPipeline(EnvironmentPipeline):
         if not self.network.learning and self.observer_agent.method == 'first_spike':
             self.observer_agent.random_counter = 0
 
-    def env_reset(self) -> None:
+    def reset_env(self) -> None:
         self.env.reset()
         self.accumulated_reward = 0.0
         self.step_count = 0
@@ -314,6 +390,10 @@ class AgentPipeline(EnvironmentPipeline):
         self.action = torch.tensor(-1)
         self.last_action = torch.tensor(-1)
         self.action_counter = 0
+
+    def reset_monitors(self) -> None:
+        for monitor in self.network.monitors:
+            self.network.monitors[monitor].reset_state_variables()
 
     def _save_simulation_info(self, **kwargs):
         spikes = torch.cat([
