@@ -23,7 +23,7 @@ from bindsnet.environment import GymEnvironment
 from bindsnet.learning.reward import AbstractReward, MovingAvgRPE
 from bindsnet.network.monitors import Monitor
 from bindsnet.analysis.plotting import plot_weights
-from ToM.agents import ZaxxonAgent
+from ToM.agents import RiverraidAgent
 from ToM.pipelines import AgentPipeline
 
 
@@ -83,7 +83,7 @@ def ram_observation_encoder(
     return {"S2": spikes.unsqueeze(1).byte().to(device)}
 
 
-class ZaxxonReward(AbstractReward):
+class RiverraidReward(AbstractReward):
     """
     Computes the reward for Zaxxon environment.
 
@@ -96,7 +96,8 @@ class ZaxxonReward(AbstractReward):
     """
 
     def __init__(self, **kwargs):
-        pass
+        self.alpha = 0.01
+        self._last_live = 3
 
     def compute(self, **kwargs):
         """
@@ -109,6 +110,13 @@ class ZaxxonReward(AbstractReward):
 
         """
         reward = kwargs["reward"]
+        self._last_reward = reward
+        is_alive = kwargs["is_alive"]
+        live_count = kwargs["obs"][64] // 8
+        # return is_alive * (reward * self.alpha)
+        if is_alive and live_count != self._last_live:
+            self._last_live = live_count
+            return -1
         return reward
 
     def update(self, **kwargs):
@@ -125,26 +133,26 @@ class ZaxxonReward(AbstractReward):
 
 
 # Define the environment
-environment = GymEnvironment('Zaxxon-ram-v0')
+environment = GymEnvironment('Riverraid-ram-v0')
 
 # Define observer agent, acting on first spike
-observer = ZaxxonAgent(environment, dt=1.0, method='first_spike',
-                       reward_fn=ZaxxonReward)
+observer = RiverraidAgent(environment, dt=1.0, method='first_spike',
+                       reward_fn=RiverraidReward)
 
 # Define the pipeline by which the agents interact
 pipeline = AgentPipeline(
     observer_agent=observer,
     expert_agent=None,
     encoding=ram_observation_encoder,
-    time=15,
-    num_episodes=10000
+    time=256,
+    num_episodes=5000
 )
 
 w1 = pipeline.network.connections[("S2", "PM")].w
 # plot_weights(w1)
 print(w1)
 
-pipeline.train_by_babbling(test_interval=1000, num_tests=1)
+pipeline.train_by_babbling(test_interval=100, num_tests=5, output_noise_rate=0.8)
 print("Observation Finished")
 #
 w1 = pipeline.network.connections[("S2", "PM")].w

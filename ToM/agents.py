@@ -274,7 +274,7 @@ class CartPoleObserverAgent(ObserverAgent):
         self.network.to(self.device)
 
 
-class ZaxxonAgent(ObserverAgent):
+class RiverraidAgent(ObserverAgent):
     """
     A agent in Gym Zaxxon environment.
 
@@ -336,9 +336,9 @@ class ZaxxonAgent(ObserverAgent):
                                thresh=-64.,
                                rest=-65.0,
                                reset=-65.0,
-                               refrac=20,
+                               refrac=256,
                                tc_decay=2.0,
-                               theta_plus=0.0,
+                               theta_plus=0.05,
                                tc_theta_decay=1e6,
                                one_spike=True
                                )
@@ -347,14 +347,14 @@ class ZaxxonAgent(ObserverAgent):
 
         # Input to output connections which will be trained using R-STDP
         s2_pm = Connection(s2, pm,
-                           nu=0.2,
+                           nu=0.001,
                            update_rule=MSTDPET,
                            wmin=-1.0,
                            wmax=1.0,
                            w=w1,
-                           tc_plus=7.,
-                           tc_minus=7.,
-                           tc_e_trace=180.,
+                           tc_plus=128.,
+                           tc_minus=128.,
+                           tc_e_trace=12800.,
                            # weight_decay=1e-6,
                            )
         # Inhibitory connection on output neurons to regulate their activation

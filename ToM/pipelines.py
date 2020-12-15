@@ -13,6 +13,7 @@ import datetime
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import numpy as np
 
 from bindsnet.pipeline.environment_pipeline import EnvironmentPipeline
 
@@ -178,26 +179,34 @@ class AgentPipeline(EnvironmentPipeline):
 
         """
         obs, reward, done, info = gym_batch
+        is_alive = not done
         # Encode the observation
         inputs = self.encoding(obs, self.time, **kwargs)
+
+        pm_n = self.network.layers["PM"].n
+        n_action = self.env.action_space.n
+        pm_s = torch.zeros(self.time, pm_n)
 
         # Clamp output to spike at `representation_time` based on expert's action.
         clamp = {}
         if not self.babble:
-            pm_n = self.network.layers["PM"].n
-            n_action = self.env.action_space.n
-            pm_v = torch.zeros(self.time, pm_n)
-            pm_v[self.representation_time, pm_n//n_action * self.action:
+            pm_s[self.representation_time, pm_n//n_action * self.action:
                  pm_n//n_action * (self.action + 1)] = 1
 
-            pm_v = pm_v.view(self.time, n_action, -1).byte()
-            clamp = {
-                "PM": pm_v.to(self.device)
-            } if self.network.learning else {}
+        output_noise_rate = kwargs.get("output_noise_rate", 0.0)
+        if self.network.learning and np.random.uniform() < output_noise_rate:
+            t = int(np.random.uniform() * (self.time - 1))
+            action = self.env.action_space.sample()
+            pm_s[t, pm_n//n_action * action:pm_n//n_action * (action + 1)] = 1
+
+        pm_s = pm_s.view(self.time, n_action, -1).byte()
+        clamp = {
+            "PM": pm_s.to(self.device)
+        } if self.network.learning else {}
 
         # Run the network
         self.network.run(inputs=inputs, clamp=clamp, time=self.time,
-                         reward=reward, **kwargs)
+                         reward=reward, is_alive=is_alive, obs=obs.squeeze(), **kwargs)
 
         if kwargs.get("log_path") is not None and not self.observer_agent.network.learning:
             self._log_info(kwargs["log_path"], obs.squeeze(), inputs)
@@ -214,6 +223,7 @@ class AgentPipeline(EnvironmentPipeline):
             self.reward_list.append(self.accumulated_reward)
 
     def _train(self, **kwargs) -> None:
+        output_noise_rate = kwargs.pop('output_noise_rate', 0.0)
         test_interval = kwargs.get("test_interval", 1)
         num_tests = kwargs.get("num_tests", 1)
         log_count = 0
@@ -236,7 +246,8 @@ class AgentPipeline(EnvironmentPipeline):
             info = {}
 
             if self.babble:
-                self.step((prev_obs, 1.0, False, {}), **kwargs)
+                self.step((prev_obs, 1.0, False, {}),
+                          output_noise_rate=output_noise_rate, **kwargs)
 
             new_done = False
             while not prev_done:
@@ -253,11 +264,13 @@ class AgentPipeline(EnvironmentPipeline):
                 if not self.babble:
                     # The observer watches the result of expert's action and how
                     # it modified the environment.
-                    self.step((prev_obs, prev_reward, prev_done, info), **kwargs)
+                    self.step((prev_obs, prev_reward, prev_done, info),
+                              output_noise_rate=output_noise_rate, **kwargs)
                 else:
-                    self.step((new_obs, new_reward, new_done, info), **kwargs)
+                    self.step((new_obs, new_reward, new_done, info),
+                              output_noise_rate=output_noise_rate, **kwargs)
 
-                if self.log_writer:
+                if self.log_writer and self.episode % 10 == 0:
                     self._save_simulation_info(**kwargs)
 
                 prev_obs = new_obs
@@ -275,6 +288,8 @@ class AgentPipeline(EnvironmentPipeline):
                     log_count += 1
 
             self.episode += 1
+            if self.episode % 10 == 0:
+                output_noise_rate *= 0.75
 
     def train_by_observation(self, **kwargs) -> None:
         """
@@ -330,7 +345,10 @@ class AgentPipeline(EnvironmentPipeline):
         self.reset_state_variables()
 
         self.action_function = self.observer_agent.select_action
-        obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
+        if hasattr(self.env.env, 'state'):
+            obs = torch.Tensor(self.env.env.state).to(self.observer_agent.device)
+        else:
+            obs = torch.Tensor(self.env.reset()).to(self.observer_agent.device)
         self.step((obs, 1.0, False, {}), **kwargs)
 
         if self.log_writer:
